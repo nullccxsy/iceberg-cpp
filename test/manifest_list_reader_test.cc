@@ -82,6 +82,118 @@ class ManifestListReaderTest : public TempFileTestBase {
     return manifest_files;
   }
 
+  std::vector<ManifestFile> PrepareTestManifestListPartition() {
+    std::vector<ManifestFile> manifest_files;
+    std::string test_dir_prefix = "iceberg-warehouse/db/v1_partition_test/metadata/";
+    std::vector<std::string> paths = {"eafd2972-f58e-4185-9237-6378f564787e-m1.avro",
+                                      "eafd2972-f58e-4185-9237-6378f564787e-m0.avro"};
+    std::vector<int64_t> file_size = {6185, 6113};
+    std::vector<int64_t> snapshot_id = {7532614258660258098, 7532614258660258098};
+
+    std::vector<std::vector<std::uint8_t>> lower_bounds = {
+        {0x32, 0x30, 0x32, 0x32, 0x2D, 0x30, 0x32, 0x2D, 0x32, 0x32},
+        {0x32, 0x30, 0x32, 0x32, 0x2D, 0x32, 0x2D, 0x32, 0x32}};
+
+    std::vector<std::vector<std::uint8_t>> upper_bounds = {
+        {0x32, 0x30, 0x32, 0x32, 0x2D, 0x32, 0x2D, 0x32, 0x33},
+        {0x32, 0x30, 0x32, 0x32, 0x2D, 0x32, 0x2D, 0x32, 0x33}};
+
+    for (int i = 0; i < 2; ++i) {
+      ManifestFile manifest_file;
+      manifest_file.manifest_path = test_dir_prefix + paths[i];
+      manifest_file.manifest_length = file_size[i];
+      manifest_file.partition_spec_id = 0;
+      manifest_file.added_snapshot_id = snapshot_id[i];
+      manifest_file.added_files_count = 4 * (1 - i);
+      manifest_file.existing_files_count = 0;
+      manifest_file.deleted_files_count = 2 * i;
+      manifest_file.added_rows_count = 6 * (1 - i);
+      manifest_file.existing_rows_count = 0;
+      manifest_file.deleted_rows_count = 6 * i;
+
+      PartitionFieldSummary partition;
+      partition.contains_null = false;
+      partition.contains_nan = false;
+      partition.lower_bound = lower_bounds[i];
+      partition.upper_bound = upper_bounds[i];
+      manifest_file.partitions.emplace_back(partition);
+      manifest_files.emplace_back(manifest_file);
+    }
+    return manifest_files;
+  }
+
+  std::vector<ManifestFile> PrepareTestManifestListComplexType() {
+    std::vector<ManifestFile> manifest_files;
+    std::string test_dir_prefix = "iceberg-warehouse/db/v1_type_test/metadata/";
+    std::vector<std::string> paths = {"aeffe099-3bac-4011-bc17-5875210d8dc0-m1.avro",
+                                      "aeffe099-3bac-4011-bc17-5875210d8dc0-m0.avro"};
+    std::vector<int64_t> file_size = {6498, 6513};
+    std::vector<int64_t> snapshot_id = {4134160420377642835, 4134160420377642835};
+
+    for (int i = 0; i < 2; ++i) {
+      ManifestFile manifest_file;
+      manifest_file.manifest_path = test_dir_prefix + paths[i];
+      manifest_file.manifest_length = file_size[i];
+      manifest_file.partition_spec_id = 0;
+      manifest_file.added_snapshot_id = snapshot_id[i];
+      manifest_file.added_files_count = 1 - i;
+      manifest_file.existing_files_count = 0;
+      manifest_file.deleted_files_count = i;
+      manifest_file.added_rows_count = 2 * (1 - i);
+      manifest_file.existing_rows_count = 0;
+      manifest_file.deleted_rows_count = 3 * i;
+      manifest_files.emplace_back(manifest_file);
+    }
+    return manifest_files;
+  }
+
+  std::vector<ManifestFile> PrepareTestManifestListPartitionComplex() {
+    std::vector<ManifestFile> manifest_files;
+    std::string test_dir_prefix =
+        "iceberg-warehouse/db2/v1_complex_partition_test/metadata/";
+    std::vector<std::string> paths = {"5d690750-8fb4-4cd1-8ae7-85c7b39abe14-m0.avro",
+                                      "5d690750-8fb4-4cd1-8ae7-85c7b39abe14-m1.avro"};
+    std::vector<int64_t> file_size = {6402, 6318};
+    std::vector<int64_t> snapshot_id = {7522296285847100621, 7522296285847100621};
+
+    std::vector<std::vector<std::uint8_t>> lower_bounds = {
+        {0x32, 0x30, 0x32, 0x32, 0x2D, 0x32, 0x2D, 0x32, 0x32},
+        {0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+        {0x32, 0x30, 0x32, 0x32, 0x2D, 0x32, 0x2D, 0x32, 0x32},
+        {0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}};
+
+    std::vector<std::vector<std::uint8_t>> upper_bounds = {
+        {0x32, 0x30, 0x32, 0x32, 0x2D, 0x32, 0x2D, 0x32, 0x34},
+        {0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+        {0x32, 0x30, 0x32, 0x32, 0x2D, 0x32, 0x2D, 0x32, 0x33},
+        {0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}};
+
+    for (int i = 0; i < 2; ++i) {
+      ManifestFile manifest_file;
+      manifest_file.manifest_path = test_dir_prefix + paths[i];
+      manifest_file.manifest_length = file_size[i];
+      manifest_file.partition_spec_id = 0;
+      manifest_file.added_snapshot_id = snapshot_id[i];
+      manifest_file.added_files_count = 0;
+      manifest_file.existing_files_count = i == 0 ? 3 : 1;
+      manifest_file.deleted_files_count = 1;
+      manifest_file.added_rows_count = 0;
+      manifest_file.existing_rows_count = i == 0 ? 4 : 1;
+      manifest_file.deleted_rows_count = i == 0 ? 2 : 1;
+
+      PartitionFieldSummary partition;
+      for (int j = 0; j < 2; ++j) {
+        partition.contains_null = false;
+        partition.contains_nan = false;
+        partition.lower_bound = lower_bounds[2 * i + j];
+        partition.upper_bound = upper_bounds[2 * i + j];
+        manifest_file.partitions.emplace_back(partition);
+      }
+      manifest_files.emplace_back(manifest_file);
+    }
+    return manifest_files;
+  }
+
   std::shared_ptr<::arrow::fs::LocalFileSystem> local_fs_;
   std::shared_ptr<FileIO> file_io_;
 };
@@ -97,6 +209,48 @@ TEST_F(ManifestListReaderTest, BasicTest) {
   ASSERT_EQ(read_result.value().size(), 4);
 
   auto expected_manifest_list = PrepareTestManifestList();
+  ASSERT_EQ(read_result.value(), expected_manifest_list);
+}
+
+TEST_F(ManifestListReaderTest, PartitionTest) {
+  std::string path = GetResourcePath(
+      "snap-7532614258660258098-1-eafd2972-f58e-4185-9237-6378f564787e.avro");
+  auto manifest_reader_result = ManifestListReader::MakeReader(path, file_io_);
+  ASSERT_EQ(manifest_reader_result.has_value(), true);
+  auto manifest_reader = std::move(manifest_reader_result.value());
+  auto read_result = manifest_reader->Files();
+  ASSERT_EQ(read_result.has_value(), true);
+  ASSERT_EQ(read_result.value().size(), 2);
+
+  auto expected_manifest_list = PrepareTestManifestListPartition();
+  ASSERT_EQ(read_result.value(), expected_manifest_list);
+}
+
+TEST_F(ManifestListReaderTest, ComplexTypeTest) {
+  std::string path = GetResourcePath(
+      "snap-4134160420377642835-1-aeffe099-3bac-4011-bc17-5875210d8dc0.avro");
+  auto manifest_reader_result = ManifestListReader::MakeReader(path, file_io_);
+  ASSERT_EQ(manifest_reader_result.has_value(), true);
+  auto manifest_reader = std::move(manifest_reader_result.value());
+  auto read_result = manifest_reader->Files();
+  ASSERT_EQ(read_result.has_value(), true);
+  ASSERT_EQ(read_result.value().size(), 2);
+
+  auto expected_manifest_list = PrepareTestManifestListComplexType();
+  ASSERT_EQ(read_result.value(), expected_manifest_list);
+}
+
+TEST_F(ManifestListReaderTest, PartitionComplexTypeTest) {
+  std::string path = GetResourcePath(
+      "snap-7522296285847100621-1-5d690750-8fb4-4cd1-8ae7-85c7b39abe14.avro");
+  auto manifest_reader_result = ManifestListReader::MakeReader(path, file_io_);
+  ASSERT_EQ(manifest_reader_result.has_value(), true);
+  auto manifest_reader = std::move(manifest_reader_result.value());
+  auto read_result = manifest_reader->Files();
+  ASSERT_EQ(read_result.has_value(), true);
+  ASSERT_EQ(read_result.value().size(), 2);
+
+  auto expected_manifest_list = PrepareTestManifestListPartitionComplex();
   ASSERT_EQ(read_result.value(), expected_manifest_list);
 }
 
