@@ -28,6 +28,7 @@
 #include <optional>
 #include <ranges>
 #include <string_view>
+
 #include <iceberg/schema_field.h>
 
 #include "iceberg/exception.h"
@@ -82,8 +83,8 @@ std::optional<std::reference_wrapper<const SchemaField>> StructType::GetFieldByN
   if (it == field_name_to_index_.end()) return std::nullopt;
   return fields_[it->second];
 }
-std::optional<std::reference_wrapper<const SchemaField>> StructType::GetFieldByNameCaseInsensitive(
-  std::string_view name) const {
+std::optional<std::reference_wrapper<const SchemaField>>
+StructType::GetFieldByNameCaseInsensitive(std::string_view name) const {
   InitNameToIdMapCaseInsensitive();
   std::string lower_name(name);
   std::ranges::transform(lower_name, lower_name.begin(), ::tolower);
@@ -102,16 +103,16 @@ void StructType::InitNameToIdMap() const {
   if (!field_name_to_index_.empty()) {
     return;
   }
-  
+
   for (int i = 0; i < fields_.size(); i++) {
-    field_name_to_index_[std::string(fields_[i].name())]  = i;
+    field_name_to_index_[std::string(fields_[i].name())] = i;
   }
 }
 void StructType::InitNameToIdMapCaseInsensitive() const {
   if (!caseinsensitive_field_name_to_index_.empty()) {
     return;
   }
-  
+
   for (int i = 0; i < fields_.size(); i++) {
     std::string lowercase_name(fields_[i].name());
     std::ranges::transform(lowercase_name, lowercase_name.begin(), ::tolower);
@@ -160,13 +161,13 @@ std::optional<std::reference_wrapper<const SchemaField>> ListType::GetFieldByNam
   }
   return std::nullopt;
 }
-std::optional<std::reference_wrapper<const SchemaField>> ListType::GetFieldByNameCaseInsensitive(
-    std::string_view name) const {
+std::optional<std::reference_wrapper<const SchemaField>>
+ListType::GetFieldByNameCaseInsensitive(std::string_view name) const {
   auto lower_name_view = name | std::views::transform(::tolower);
   auto lower_field_name = element_.name() | std::views::transform(::tolower);
   if (std::ranges::equal(lower_field_name, lower_name_view)) {
     return std::cref(element_);
-  } 
+  }
   return std::nullopt;
 }
 bool ListType::Equals(const Type& other) const {
@@ -229,11 +230,11 @@ std::optional<std::reference_wrapper<const SchemaField>> MapType::GetFieldByName
   }
   return std::nullopt;
 }
-std::optional<std::reference_wrapper<const SchemaField>> MapType::GetFieldByNameCaseInsensitive(
-    std::string_view name) const {
-  auto lower_name_view  = name | std::views::transform(::tolower);
-  auto lower_key_view = kKeyName | std::views::transform(tolower);
-  auto lower_value_view = kValueName | std::views::transform(tolower);
+std::optional<std::reference_wrapper<const SchemaField>>
+MapType::GetFieldByNameCaseInsensitive(std::string_view name) const {
+  auto lower_name_view = name | std::views::transform(::tolower);
+  auto lower_key_view = kKeyName | std::views::transform(::tolower);
+  auto lower_value_view = kValueName | std::views::transform(::tolower);
   if (std::ranges::equal(lower_key_view, lower_name_view)) {
     return key();
   } else if (std::ranges::equal(lower_value_view, lower_name_view)) {

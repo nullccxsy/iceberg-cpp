@@ -24,6 +24,7 @@
 /// iceberg/type_fwd.h for the enum defining the list of types.
 
 #include <array>
+#include <cctype>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -194,7 +195,7 @@ class ICEBERG_EXPORT MapType : public NestedType {
       std::string_view name) const override;
   std::optional<std::reference_wrapper<const SchemaField>> GetFieldByNameCaseInsensitive(
       std::string_view name) const override;
-      
+
  protected:
   bool Equals(const Type& other) const override;
 
