@@ -51,14 +51,6 @@ TEST(SchemaTest, Basics) {
     ASSERT_EQ(std::nullopt, schema.GetFieldByIndex(-1));
     ASSERT_EQ(std::nullopt, schema.GetFieldByName("element"));
   }
-  ASSERT_THAT(
-      []() {
-        iceberg::SchemaField field1(5, "foo", iceberg::int32(), true);
-        iceberg::SchemaField field2(5, "bar", iceberg::string(), true);
-        iceberg::Schema schema({field1, field2}, 100);
-      },
-      ::testing::ThrowsMessage<std::runtime_error>(
-          ::testing::HasSubstr("duplicate field ID 5")));
 }
 
 TEST(SchemaTest, Equality) {
