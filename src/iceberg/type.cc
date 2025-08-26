@@ -25,22 +25,17 @@
 
 #include "iceberg/exception.h"
 #include "iceberg/util/formatter.h"  // IWYU pragma: keep
+#include "iceberg/util/macros.h"
+#include "iceberg/util/string_utils.h"
 
 namespace iceberg {
 
-StructType::StructType(std::vector<SchemaField> fields) : fields_(std::move(fields)) {
-  size_t index = 0;
-  for (const auto& field : fields_) {
-    auto [it, inserted] = field_id_to_index_.try_emplace(field.field_id(), index);
-    if (!inserted) {
-      throw IcebergError(
-          std::format("StructType: duplicate field ID {} (field indices {} and {})",
-                      field.field_id(), it->second, index));
-    }
-
-    ++index;
-  }
+Result<std::optional<std::reference_wrapper<const SchemaField>>>
+NestedType::GetFieldByName(std::string_view name) const {
+  return GetFieldByName(name, true);
 }
+
+StructType::StructType(std::vector<SchemaField> fields) : fields_(std::move(fields)) {}
 
 TypeId StructType::type_id() const { return kTypeId; }
 
@@ -53,27 +48,34 @@ std::string StructType::ToString() const {
   return repr;
 }
 std::span<const SchemaField> StructType::fields() const { return fields_; }
-std::optional<std::reference_wrapper<const SchemaField>> StructType::GetFieldById(
+Result<std::optional<std::reference_wrapper<const SchemaField>>> StructType::GetFieldById(
     int32_t field_id) const {
-  auto it = field_id_to_index_.find(field_id);
-  if (it == field_id_to_index_.end()) return std::nullopt;
-  return fields_[it->second];
+  ICEBERG_RETURN_UNEXPECTED(InitFieldById());
+  auto it = field_by_id_.find(field_id);
+  if (it == field_by_id_.end()) return std::nullopt;
+  return it->second;
 }
-std::optional<std::reference_wrapper<const SchemaField>> StructType::GetFieldByIndex(
-    int32_t index) const {
-  if (index < 0 || index >= static_cast<int32_t>(fields_.size())) {
+Result<std::optional<std::reference_wrapper<const SchemaField>>>
+StructType::GetFieldByIndex(int32_t index) const {
+  if (index < 0 || static_cast<size_t>(index) >= fields_.size()) {
     return std::nullopt;
   }
   return fields_[index];
 }
-std::optional<std::reference_wrapper<const SchemaField>> StructType::GetFieldByName(
-    std::string_view name) const {
-  // N.B. duplicate names are not permitted (looking at the Java
-  // implementation) so there is nothing in particular we need to do here
-  for (const auto& field : fields_) {
-    if (field.name() == name) {
-      return field;
+Result<std::optional<std::reference_wrapper<const SchemaField>>>
+StructType::GetFieldByName(std::string_view name, bool case_sensitive) const {
+  if (case_sensitive) {
+    ICEBERG_RETURN_UNEXPECTED(InitFieldByName());
+    auto it = field_by_name_.find(name);
+    if (it != field_by_name_.end()) {
+      return it->second;
     }
+    return std::nullopt;
+  }
+  ICEBERG_RETURN_UNEXPECTED(InitFieldByLowerCaseName());
+  auto it = field_by_lowercase_name_.find(StringUtils::ToLower(name));
+  if (it != field_by_lowercase_name_.end()) {
+    return it->second;
   }
   return std::nullopt;
 }
@@ -83,6 +85,48 @@ bool StructType::Equals(const Type& other) const {
   }
   const auto& struct_ = static_cast<const StructType&>(other);
   return fields_ == struct_.fields_;
+}
+Status StructType::InitFieldById() const {
+  if (!field_by_id_.empty()) {
+    return {};
+  }
+  for (const auto& field : fields_) {
+    auto it = field_by_id_.try_emplace(field.field_id(), field);
+    if (!it.second) {
+      return NotAllowed("Duplicate field id found: {} (prev name: {}, curr name: {})",
+                        field.field_id(), it.first->second.get().name(), field.name());
+    }
+  }
+  return {};
+}
+Status StructType::InitFieldByName() const {
+  if (!field_by_name_.empty()) {
+    return {};
+  }
+  for (const auto& field : fields_) {
+    auto it = field_by_name_.try_emplace(field.name(), field);
+    if (!it.second) {
+      return NotAllowed("Duplicate field name found: {} (prev id: {}, curr id: {})",
+                        it.first->first, it.first->second.get().field_id(),
+                        field.field_id());
+    }
+  }
+  return {};
+}
+Status StructType::InitFieldByLowerCaseName() const {
+  if (!field_by_lowercase_name_.empty()) {
+    return {};
+  }
+  for (const auto& field : fields_) {
+    auto it =
+        field_by_lowercase_name_.try_emplace(StringUtils::ToLower(field.name()), field);
+    if (!it.second) {
+      return NotAllowed("Duplicate field name found: {} (prev id: {}, curr id: {})",
+                        it.first->first, it.first->second.get().field_id(),
+                        field.field_id());
+    }
+  }
+  return {};
 }
 
 ListType::ListType(SchemaField element) : element_(std::move(element)) {
@@ -105,23 +149,29 @@ std::string ListType::ToString() const {
   return repr;
 }
 std::span<const SchemaField> ListType::fields() const { return {&element_, 1}; }
-std::optional<std::reference_wrapper<const SchemaField>> ListType::GetFieldById(
+Result<std::optional<std::reference_wrapper<const SchemaField>>> ListType::GetFieldById(
     int32_t field_id) const {
   if (field_id == element_.field_id()) {
     return std::cref(element_);
   }
   return std::nullopt;
 }
-std::optional<std::reference_wrapper<const SchemaField>> ListType::GetFieldByIndex(
-    int index) const {
+Result<std::optional<std::reference_wrapper<const SchemaField>>>
+ListType::GetFieldByIndex(int index) const {
   if (index == 0) {
     return std::cref(element_);
   }
   return std::nullopt;
 }
-std::optional<std::reference_wrapper<const SchemaField>> ListType::GetFieldByName(
-    std::string_view name) const {
-  if (name == element_.name()) {
+Result<std::optional<std::reference_wrapper<const SchemaField>>> ListType::GetFieldByName(
+    std::string_view name, bool case_sensitive) const {
+  if (case_sensitive) {
+    if (name == element_.name()) {
+      return std::cref(element_);
+    }
+    return std::nullopt;
+  }
+  if (StringUtils::ToLower(name) == StringUtils::ToLower(element_.name())) {
     return std::cref(element_);
   }
   return std::nullopt;
@@ -159,7 +209,7 @@ std::string MapType::ToString() const {
   return repr;
 }
 std::span<const SchemaField> MapType::fields() const { return fields_; }
-std::optional<std::reference_wrapper<const SchemaField>> MapType::GetFieldById(
+Result<std::optional<std::reference_wrapper<const SchemaField>>> MapType::GetFieldById(
     int32_t field_id) const {
   if (field_id == key().field_id()) {
     return key();
@@ -168,7 +218,7 @@ std::optional<std::reference_wrapper<const SchemaField>> MapType::GetFieldById(
   }
   return std::nullopt;
 }
-std::optional<std::reference_wrapper<const SchemaField>> MapType::GetFieldByIndex(
+Result<std::optional<std::reference_wrapper<const SchemaField>>> MapType::GetFieldByIndex(
     int32_t index) const {
   if (index == 0) {
     return key();
@@ -177,11 +227,19 @@ std::optional<std::reference_wrapper<const SchemaField>> MapType::GetFieldByInde
   }
   return std::nullopt;
 }
-std::optional<std::reference_wrapper<const SchemaField>> MapType::GetFieldByName(
-    std::string_view name) const {
-  if (name == kKeyName) {
+Result<std::optional<std::reference_wrapper<const SchemaField>>> MapType::GetFieldByName(
+    std::string_view name, bool case_sensitive) const {
+  if (case_sensitive) {
+    if (name == kKeyName) {
+      return key();
+    } else if (name == kValueName) {
+      return value();
+    }
+    return std::nullopt;
+  }
+  if (StringUtils::ToLower(name) == StringUtils::ToLower(kKeyName)) {
     return key();
-  } else if (name == kValueName) {
+  } else if (StringUtils::ToLower(name) == StringUtils::ToLower(kValueName)) {
     return value();
   }
   return std::nullopt;
