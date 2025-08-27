@@ -32,19 +32,9 @@
 #include "iceberg/result.h"
 #include "iceberg/schema_field.h"
 #include "iceberg/type.h"
+#include "iceberg/util/string_utils.h"
 
 namespace iceberg {
-
-/// \brief Transparent hash function that supports std::string_view as lookup key
-///
-/// Enables std::unordered_map to directly accept std::string_view lookup keys
-/// without creating temporary std::string objects, using C++20's transparent lookup.
-struct string_hash {
-  using hash_type = std::hash<std::string_view>;
-  using is_transparent = void;
-
-  std::size_t operator()(std::string_view str) const { return hash_type{}(str); }
-};
 
 /// \brief A schema for a Table.
 ///

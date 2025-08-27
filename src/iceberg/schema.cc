@@ -26,7 +26,6 @@
 #include "iceberg/type.h"
 #include "iceberg/util/formatter.h"  // IWYU pragma: keep
 #include "iceberg/util/macros.h"
-#include "iceberg/util/string_utils.h"
 #include "iceberg/util/visit_type.h"
 
 namespace iceberg {
