@@ -26,13 +26,13 @@
 #include "iceberg/exception.h"
 #include "iceberg/util/formatter.h"  // IWYU pragma: keep
 #include "iceberg/util/macros.h"
-#include "iceberg/util/string_utils.h"
+#include "iceberg/util/string_util.h"
 
 namespace iceberg {
 
-Result<std::optional<std::reference_wrapper<const SchemaField>>>
-NestedType::GetFieldByName(std::string_view name) const {
-  return GetFieldByName(name, true);
+Result<std::optional<SchemaFieldConstRef>> NestedType::GetFieldByName(
+    std::string_view name) const {
+  return GetFieldByName(name, /*case_sensitive=*/true);
 }
 
 StructType::StructType(std::vector<SchemaField> fields) : fields_(std::move(fields)) {}
@@ -48,22 +48,22 @@ std::string StructType::ToString() const {
   return repr;
 }
 std::span<const SchemaField> StructType::fields() const { return fields_; }
-Result<std::optional<std::reference_wrapper<const SchemaField>>> StructType::GetFieldById(
+Result<std::optional<SchemaFieldConstRef>> StructType::GetFieldById(
     int32_t field_id) const {
   ICEBERG_RETURN_UNEXPECTED(InitFieldById());
   auto it = field_by_id_.find(field_id);
   if (it == field_by_id_.end()) return std::nullopt;
   return it->second;
 }
-Result<std::optional<std::reference_wrapper<const SchemaField>>>
-StructType::GetFieldByIndex(int32_t index) const {
+Result<std::optional<SchemaFieldConstRef>> StructType::GetFieldByIndex(
+    int32_t index) const {
   if (index < 0 || static_cast<size_t>(index) >= fields_.size()) {
-    return std::nullopt;
+    return InvalidArgument("index {} is out of range[0, {})", index, fields_.size());
   }
   return fields_[index];
 }
-Result<std::optional<std::reference_wrapper<const SchemaField>>>
-StructType::GetFieldByName(std::string_view name, bool case_sensitive) const {
+Result<std::optional<SchemaFieldConstRef>> StructType::GetFieldByName(
+    std::string_view name, bool case_sensitive) const {
   if (case_sensitive) {
     ICEBERG_RETURN_UNEXPECTED(InitFieldByName());
     auto it = field_by_name_.find(name);
@@ -93,8 +93,8 @@ Status StructType::InitFieldById() const {
   for (const auto& field : fields_) {
     auto it = field_by_id_.try_emplace(field.field_id(), field);
     if (!it.second) {
-      return NotAllowed("Duplicate field id found: {} (prev name: {}, curr name: {})",
-                        field.field_id(), it.first->second.get().name(), field.name());
+      return InvalidSchema("Duplicate field id found: {} (prev name: {}, curr name: {})",
+                           field.field_id(), it.first->second.get().name(), field.name());
     }
   }
   return {};
@@ -106,9 +106,9 @@ Status StructType::InitFieldByName() const {
   for (const auto& field : fields_) {
     auto it = field_by_name_.try_emplace(field.name(), field);
     if (!it.second) {
-      return NotAllowed("Duplicate field name found: {} (prev id: {}, curr id: {})",
-                        it.first->first, it.first->second.get().field_id(),
-                        field.field_id());
+      return InvalidSchema("Duplicate field name found: {} (prev id: {}, curr id: {})",
+                           it.first->first, it.first->second.get().field_id(),
+                           field.field_id());
     }
   }
   return {};
@@ -121,9 +121,9 @@ Status StructType::InitFieldByLowerCaseName() const {
     auto it =
         field_by_lowercase_name_.try_emplace(StringUtils::ToLower(field.name()), field);
     if (!it.second) {
-      return NotAllowed("Duplicate field name found: {} (prev id: {}, curr id: {})",
-                        it.first->first, it.first->second.get().field_id(),
-                        field.field_id());
+      return InvalidSchema("Duplicate field name found: {} (prev id: {}, curr id: {})",
+                           it.first->first, it.first->second.get().field_id(),
+                           field.field_id());
     }
   }
   return {};
@@ -149,29 +149,28 @@ std::string ListType::ToString() const {
   return repr;
 }
 std::span<const SchemaField> ListType::fields() const { return {&element_, 1}; }
-Result<std::optional<std::reference_wrapper<const SchemaField>>> ListType::GetFieldById(
+Result<std::optional<SchemaFieldConstRef>> ListType::GetFieldById(
     int32_t field_id) const {
   if (field_id == element_.field_id()) {
     return std::cref(element_);
   }
   return std::nullopt;
 }
-Result<std::optional<std::reference_wrapper<const SchemaField>>>
-ListType::GetFieldByIndex(int index) const {
+Result<std::optional<SchemaFieldConstRef>> ListType::GetFieldByIndex(int index) const {
   if (index == 0) {
     return std::cref(element_);
   }
-  return std::nullopt;
+  return InvalidArgument("index {} is out of range[0, {})", index, 1);
 }
-Result<std::optional<std::reference_wrapper<const SchemaField>>> ListType::GetFieldByName(
+Result<std::optional<SchemaFieldConstRef>> ListType::GetFieldByName(
     std::string_view name, bool case_sensitive) const {
   if (case_sensitive) {
-    if (name == element_.name()) {
+    if (name == kElementName) {
       return std::cref(element_);
     }
     return std::nullopt;
   }
-  if (StringUtils::ToLower(name) == StringUtils::ToLower(element_.name())) {
+  if (StringUtils::ToLower(name) == kElementName) {
     return std::cref(element_);
   }
   return std::nullopt;
@@ -209,8 +208,7 @@ std::string MapType::ToString() const {
   return repr;
 }
 std::span<const SchemaField> MapType::fields() const { return fields_; }
-Result<std::optional<std::reference_wrapper<const SchemaField>>> MapType::GetFieldById(
-    int32_t field_id) const {
+Result<std::optional<SchemaFieldConstRef>> MapType::GetFieldById(int32_t field_id) const {
   if (field_id == key().field_id()) {
     return key();
   } else if (field_id == value().field_id()) {
@@ -218,16 +216,15 @@ Result<std::optional<std::reference_wrapper<const SchemaField>>> MapType::GetFie
   }
   return std::nullopt;
 }
-Result<std::optional<std::reference_wrapper<const SchemaField>>> MapType::GetFieldByIndex(
-    int32_t index) const {
+Result<std::optional<SchemaFieldConstRef>> MapType::GetFieldByIndex(int32_t index) const {
   if (index == 0) {
     return key();
   } else if (index == 1) {
     return value();
   }
-  return std::nullopt;
+  return InvalidArgument("index {} is out of range[0, {})", index, 2);
 }
-Result<std::optional<std::reference_wrapper<const SchemaField>>> MapType::GetFieldByName(
+Result<std::optional<SchemaFieldConstRef>> MapType::GetFieldByName(
     std::string_view name, bool case_sensitive) const {
   if (case_sensitive) {
     if (name == kKeyName) {
@@ -237,9 +234,9 @@ Result<std::optional<std::reference_wrapper<const SchemaField>>> MapType::GetFie
     }
     return std::nullopt;
   }
-  if (StringUtils::ToLower(name) == StringUtils::ToLower(kKeyName)) {
+  if (StringUtils::ToLower(name) == kKeyName) {
     return key();
-  } else if (StringUtils::ToLower(name) == StringUtils::ToLower(kValueName)) {
+  } else if (StringUtils::ToLower(name) == kValueName) {
     return value();
   }
   return std::nullopt;

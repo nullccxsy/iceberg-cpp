@@ -315,13 +315,22 @@ TEST(TypeTest, List) {
     std::span<const iceberg::SchemaField> fields = list.fields();
     ASSERT_EQ(1, fields.size());
     ASSERT_EQ(field, fields[0]);
-    ASSERT_THAT(list.GetFieldById(5), ::testing::Optional(field));
+    auto result = list.GetFieldByIndex(5);
+    ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
+    ASSERT_THAT(result.error().message,
+                ::testing::HasSubstr("index 5 is out of range[0, 1)"));
     ASSERT_THAT(list.GetFieldByIndex(0), ::testing::Optional(field));
     ASSERT_THAT(list.GetFieldByName("element"), ::testing::Optional(field));
 
     ASSERT_EQ(std::nullopt, list.GetFieldById(0));
-    ASSERT_EQ(std::nullopt, list.GetFieldByIndex(1));
-    ASSERT_EQ(std::nullopt, list.GetFieldByIndex(-1));
+    result = list.GetFieldByIndex(1);
+    ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
+    ASSERT_THAT(result.error().message,
+                ::testing::HasSubstr("index 1 is out of range[0, 1)"));
+    result = list.GetFieldByIndex(-1);
+    ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
+    ASSERT_THAT(result.error().message,
+                ::testing::HasSubstr("index -1 is out of range[0, 1)"));
     ASSERT_EQ(std::nullopt, list.GetFieldByName("foo"));
   }
   ASSERT_THAT(
@@ -350,8 +359,14 @@ TEST(TypeTest, Map) {
     ASSERT_THAT(map.GetFieldByName("value"), ::testing::Optional(value));
 
     ASSERT_EQ(std::nullopt, map.GetFieldById(0));
-    ASSERT_EQ(std::nullopt, map.GetFieldByIndex(2));
-    ASSERT_EQ(std::nullopt, map.GetFieldByIndex(-1));
+    auto result = map.GetFieldByIndex(2);
+    ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
+    ASSERT_THAT(result.error().message,
+                ::testing::HasSubstr("index 2 is out of range[0, 2)"));
+    result = map.GetFieldByIndex(-1);
+    ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
+    ASSERT_THAT(result.error().message,
+                ::testing::HasSubstr("index -1 is out of range[0, 2)"));
     ASSERT_EQ(std::nullopt, map.GetFieldByName("element"));
   }
   ASSERT_THAT(
@@ -389,8 +404,14 @@ TEST(TypeTest, Struct) {
     ASSERT_THAT(struct_.GetFieldByName("bar"), ::testing::Optional(field2));
 
     ASSERT_EQ(std::nullopt, struct_.GetFieldById(0));
-    ASSERT_EQ(std::nullopt, struct_.GetFieldByIndex(2));
-    ASSERT_EQ(std::nullopt, struct_.GetFieldByIndex(-1));
+    auto result = struct_.GetFieldByIndex(2);
+    ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
+    ASSERT_THAT(result.error().message,
+                ::testing::HasSubstr("index 2 is out of range[0, 2)"));
+    result = struct_.GetFieldByIndex(-1);
+    ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
+    ASSERT_THAT(result.error().message,
+                ::testing::HasSubstr("index -1 is out of range[0, 2)"));
     ASSERT_EQ(std::nullopt, struct_.GetFieldByName("element"));
   }
 }
@@ -459,7 +480,7 @@ TEST(TypeTest, StructDuplicateId) {
 
   auto result = struct_.GetFieldById(5);
   ASSERT_FALSE(result.has_value());
-  ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kNotAllowed);
+  ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidSchema);
   ASSERT_THAT(result.error().message,
               ::testing::HasSubstr(
                   "Duplicate field id found: 5 (prev name: foo, curr name: bar)"));
@@ -472,7 +493,7 @@ TEST(TypeTest, StructDuplicateName) {
 
   auto result = struct_.GetFieldByName("foo", true);
   ASSERT_FALSE(result.has_value());
-  ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kNotAllowed);
+  ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidSchema);
   ASSERT_THAT(
       result.error().message,
       ::testing::HasSubstr("Duplicate field name found: foo (prev id: 1, curr id: 2)"));
@@ -485,7 +506,7 @@ TEST(TypeTest, StructDuplicateLowerCaseName) {
 
   auto result = struct_.GetFieldByName("foo", false);
   ASSERT_FALSE(result.has_value());
-  ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kNotAllowed);
+  ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidSchema);
   ASSERT_THAT(
       result.error().message,
       ::testing::HasSubstr("Duplicate field name found: foo (prev id: 1, curr id: 2)"));

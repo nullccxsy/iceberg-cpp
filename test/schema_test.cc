@@ -47,8 +47,14 @@ TEST(SchemaTest, Basics) {
     ASSERT_THAT(schema.GetFieldByName("bar"), ::testing::Optional(field2));
 
     ASSERT_EQ(std::nullopt, schema.GetFieldById(0));
-    ASSERT_EQ(std::nullopt, schema.GetFieldByIndex(2));
-    ASSERT_EQ(std::nullopt, schema.GetFieldByIndex(-1));
+    auto result = schema.GetFieldByIndex(2);
+    ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
+    ASSERT_THAT(result.error().message,
+                ::testing::HasSubstr("index 2 is out of range[0, 2)"));
+    result = schema.GetFieldByIndex(-1);
+    ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
+    ASSERT_THAT(result.error().message,
+                ::testing::HasSubstr("index -1 is out of range[0, 2)"));
     ASSERT_EQ(std::nullopt, schema.GetFieldByName("element"));
   }
 }
