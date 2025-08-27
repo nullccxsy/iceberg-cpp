@@ -35,6 +35,17 @@
 
 namespace iceberg {
 
+/// \brief Transparent hash function that supports std::string_view as lookup key
+///
+/// Enables std::unordered_map to directly accept std::string_view lookup keys
+/// without creating temporary std::string objects, using C++20's transparent lookup.
+struct string_hash {
+  using hash_type = std::hash<std::string_view>;
+  using is_transparent = void;
+
+  std::size_t operator()(std::string_view str) const { return hash_type{}(str); }
+};
+
 /// \brief A schema for a Table.
 ///
 /// A schema is a list of typed columns, along with a unique integer ID.  A
@@ -78,9 +89,11 @@ class ICEBERG_EXPORT Schema : public StructType {
   mutable std::unordered_map<int32_t, std::reference_wrapper<const SchemaField>>
       id_to_field_;
   /// Mapping from field name to field id.
-  mutable std::unordered_map<std::string, int32_t> name_to_id_;
+  mutable std::unordered_map<std::string, int32_t, string_hash, std::equal_to<>>
+      name_to_id_;
   /// Mapping from lowercased field name to field id
-  mutable std::unordered_map<std::string, int32_t> lowercase_name_to_id_;
+  mutable std::unordered_map<std::string, int32_t, string_hash, std::equal_to<>>
+      lowercase_name_to_id_;
 
  private:
   /// \brief Compare two schemas for equality.

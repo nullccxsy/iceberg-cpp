@@ -46,7 +46,8 @@ class IdToFieldVisitor {
 class NameToIdVisitor {
  public:
   explicit NameToIdVisitor(
-      std::unordered_map<std::string, int32_t>& name_to_id, bool case_sensitive = true,
+      std::unordered_map<std::string, int32_t, string_hash, std::equal_to<>>& name_to_id,
+      bool case_sensitive = true,
       std::function<std::string(std::string_view)> quoting_func = {});
   Status Visit(const ListType& type, const std::string& path,
                const std::string& short_path);
@@ -64,8 +65,9 @@ class NameToIdVisitor {
 
  private:
   bool case_sensitive_;
-  std::unordered_map<std::string, int32_t>& name_to_id_;
-  std::unordered_map<std::string, int32_t> short_name_to_id_;
+  std::unordered_map<std::string, int32_t, string_hash, std::equal_to<>>& name_to_id_;
+  std::unordered_map<std::string, int32_t, string_hash, std::equal_to<>>
+      short_name_to_id_;
   std::function<std::string(std::string_view)> quoting_func_;
 };
 
@@ -91,7 +93,7 @@ Result<std::optional<std::reference_wrapper<const SchemaField>>> Schema::FindFie
     std::string_view name, bool case_sensitive) const {
   if (case_sensitive) {
     ICEBERG_RETURN_UNEXPECTED(InitNameToIdMap());
-    auto it = name_to_id_.find(std::string(name));
+    auto it = name_to_id_.find(name);
     if (it == name_to_id_.end()) return std::nullopt;
     return FindFieldById(it->second);
   }
@@ -167,8 +169,8 @@ Status IdToFieldVisitor::VisitNestedType(const Type& type) {
 }
 
 NameToIdVisitor::NameToIdVisitor(
-    std::unordered_map<std::string, int32_t>& name_to_id, bool case_sensitive,
-    std::function<std::string(std::string_view)> quoting_func)
+    std::unordered_map<std::string, int32_t, string_hash, std::equal_to<>>& name_to_id,
+    bool case_sensitive, std::function<std::string(std::string_view)> quoting_func)
     : name_to_id_(name_to_id),
       case_sensitive_(case_sensitive),
       quoting_func_(std::move(quoting_func)) {}
