@@ -32,7 +32,7 @@
 #include "iceberg/result.h"
 #include "iceberg/schema_field.h"
 #include "iceberg/type.h"
-#include "iceberg/util/string_utils.h"
+#include "iceberg/util/string_util.h"
 
 namespace iceberg {
 
