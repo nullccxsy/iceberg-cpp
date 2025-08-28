@@ -50,7 +50,7 @@ class ICEBERG_EXPORT StringUtils {
 ///
 /// Enables std::unordered_map to directly accept std::string_view lookup keys
 /// without creating temporary std::string objects, using C++20's transparent lookup.
-struct string_hash {
+struct ICEBERG_EXPORT string_hash {
   using hash_type = std::hash<std::string_view>;
   using is_transparent = void;
 
