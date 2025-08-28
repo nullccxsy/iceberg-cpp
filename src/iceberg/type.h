@@ -68,12 +68,12 @@ class ICEBERG_EXPORT PrimitiveType : public Type {
   bool is_nested() const override { return false; }
 };
 
-using SchemaFieldConstRef = std::reference_wrapper<const SchemaField>;
 /// \brief A data type that has child fields.
 class ICEBERG_EXPORT NestedType : public Type {
  public:
   bool is_primitive() const override { return false; }
   bool is_nested() const override { return true; }
+  using SchemaFieldConstRef = std::reference_wrapper<const SchemaField>;
 
   /// \brief Get a view of the child fields.
   [[nodiscard]] virtual std::span<const SchemaField> fields() const = 0;
@@ -106,6 +106,7 @@ class ICEBERG_EXPORT NestedType : public Type {
 /// \brief A data type representing a struct with nested fields.
 class ICEBERG_EXPORT StructType : public NestedType {
  public:
+  using NestedType::GetFieldByName;
   constexpr static TypeId kTypeId = TypeId::kStruct;
   explicit StructType(std::vector<SchemaField> fields);
   ~StructType() override = default;
@@ -121,10 +122,10 @@ class ICEBERG_EXPORT StructType : public NestedType {
   Result<std::optional<SchemaFieldConstRef>> GetFieldByName(
       std::string_view name, bool case_sensitive) const override;
 
-  using NestedType::GetFieldByName;
-
  protected:
   bool Equals(const Type& other) const override;
+  // TODO(nullccxsy): Lazy initialization has concurrency issues, need to add proper
+  // synchronization mechanism
   Status InitFieldById() const;
   Status InitFieldByName() const;
   Status InitFieldByLowerCaseName() const;
@@ -139,6 +140,7 @@ class ICEBERG_EXPORT StructType : public NestedType {
 /// \brief A data type representing a list of values.
 class ICEBERG_EXPORT ListType : public NestedType {
  public:
+  using NestedType::GetFieldByName;
   constexpr static const TypeId kTypeId = TypeId::kList;
   constexpr static const std::string_view kElementName = "element";
 
@@ -160,8 +162,6 @@ class ICEBERG_EXPORT ListType : public NestedType {
   Result<std::optional<SchemaFieldConstRef>> GetFieldByName(
       std::string_view name, bool case_sensitive) const override;
 
-  using NestedType::GetFieldByName;
-
  protected:
   bool Equals(const Type& other) const override;
 
@@ -171,6 +171,7 @@ class ICEBERG_EXPORT ListType : public NestedType {
 /// \brief A data type representing a dictionary of values.
 class ICEBERG_EXPORT MapType : public NestedType {
  public:
+  using NestedType::GetFieldByName;
   constexpr static const TypeId kTypeId = TypeId::kMap;
   constexpr static const std::string_view kKeyName = "key";
   constexpr static const std::string_view kValueName = "value";
@@ -193,8 +194,6 @@ class ICEBERG_EXPORT MapType : public NestedType {
       int32_t index) const override;
   Result<std::optional<SchemaFieldConstRef>> GetFieldByName(
       std::string_view name, bool case_sensitive) const override;
-
-  using NestedType::GetFieldByName;
 
  protected:
   bool Equals(const Type& other) const override;

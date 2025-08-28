@@ -50,11 +50,11 @@ TEST(SchemaTest, Basics) {
     auto result = schema.GetFieldByIndex(2);
     ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
     ASSERT_THAT(result.error().message,
-                ::testing::HasSubstr("index 2 is out of range[0, 2)"));
+                ::testing::HasSubstr("Invalid index 2 to get field from struct"));
     result = schema.GetFieldByIndex(-1);
     ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
     ASSERT_THAT(result.error().message,
-                ::testing::HasSubstr("index -1 is out of range[0, 2)"));
+                ::testing::HasSubstr("Invalid index -1 to get field from struct"));
     ASSERT_EQ(std::nullopt, schema.GetFieldByName("element"));
   }
 }

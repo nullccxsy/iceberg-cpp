@@ -30,7 +30,7 @@
 
 namespace iceberg {
 
-Result<std::optional<SchemaFieldConstRef>> NestedType::GetFieldByName(
+Result<std::optional<NestedType::SchemaFieldConstRef>> NestedType::GetFieldByName(
     std::string_view name) const {
   return GetFieldByName(name, /*case_sensitive=*/true);
 }
@@ -48,21 +48,21 @@ std::string StructType::ToString() const {
   return repr;
 }
 std::span<const SchemaField> StructType::fields() const { return fields_; }
-Result<std::optional<SchemaFieldConstRef>> StructType::GetFieldById(
+Result<std::optional<NestedType::SchemaFieldConstRef>> StructType::GetFieldById(
     int32_t field_id) const {
   ICEBERG_RETURN_UNEXPECTED(InitFieldById());
   auto it = field_by_id_.find(field_id);
   if (it == field_by_id_.end()) return std::nullopt;
   return it->second;
 }
-Result<std::optional<SchemaFieldConstRef>> StructType::GetFieldByIndex(
+Result<std::optional<NestedType::SchemaFieldConstRef>> StructType::GetFieldByIndex(
     int32_t index) const {
   if (index < 0 || static_cast<size_t>(index) >= fields_.size()) {
-    return InvalidArgument("index {} is out of range[0, {})", index, fields_.size());
+    return InvalidArgument("Invalid index {} to get field from struct", index);
   }
   return fields_[index];
 }
-Result<std::optional<SchemaFieldConstRef>> StructType::GetFieldByName(
+Result<std::optional<NestedType::SchemaFieldConstRef>> StructType::GetFieldByName(
     std::string_view name, bool case_sensitive) const {
   if (case_sensitive) {
     ICEBERG_RETURN_UNEXPECTED(InitFieldByName());
@@ -149,20 +149,21 @@ std::string ListType::ToString() const {
   return repr;
 }
 std::span<const SchemaField> ListType::fields() const { return {&element_, 1}; }
-Result<std::optional<SchemaFieldConstRef>> ListType::GetFieldById(
+Result<std::optional<NestedType::SchemaFieldConstRef>> ListType::GetFieldById(
     int32_t field_id) const {
   if (field_id == element_.field_id()) {
     return std::cref(element_);
   }
   return std::nullopt;
 }
-Result<std::optional<SchemaFieldConstRef>> ListType::GetFieldByIndex(int index) const {
+Result<std::optional<NestedType::SchemaFieldConstRef>> ListType::GetFieldByIndex(
+    int index) const {
   if (index == 0) {
     return std::cref(element_);
   }
-  return InvalidArgument("index {} is out of range[0, {})", index, 1);
+  return InvalidArgument("Invalid index {} to get field from list", index);
 }
-Result<std::optional<SchemaFieldConstRef>> ListType::GetFieldByName(
+Result<std::optional<NestedType::SchemaFieldConstRef>> ListType::GetFieldByName(
     std::string_view name, bool case_sensitive) const {
   if (case_sensitive) {
     if (name == kElementName) {
@@ -208,7 +209,8 @@ std::string MapType::ToString() const {
   return repr;
 }
 std::span<const SchemaField> MapType::fields() const { return fields_; }
-Result<std::optional<SchemaFieldConstRef>> MapType::GetFieldById(int32_t field_id) const {
+Result<std::optional<NestedType::SchemaFieldConstRef>> MapType::GetFieldById(
+    int32_t field_id) const {
   if (field_id == key().field_id()) {
     return key();
   } else if (field_id == value().field_id()) {
@@ -216,15 +218,16 @@ Result<std::optional<SchemaFieldConstRef>> MapType::GetFieldById(int32_t field_i
   }
   return std::nullopt;
 }
-Result<std::optional<SchemaFieldConstRef>> MapType::GetFieldByIndex(int32_t index) const {
+Result<std::optional<NestedType::SchemaFieldConstRef>> MapType::GetFieldByIndex(
+    int32_t index) const {
   if (index == 0) {
     return key();
   } else if (index == 1) {
     return value();
   }
-  return InvalidArgument("index {} is out of range[0, {})", index, 2);
+  return InvalidArgument("Invalid index {} to get field from map", index);
 }
-Result<std::optional<SchemaFieldConstRef>> MapType::GetFieldByName(
+Result<std::optional<NestedType::SchemaFieldConstRef>> MapType::GetFieldByName(
     std::string_view name, bool case_sensitive) const {
   if (case_sensitive) {
     if (name == kKeyName) {
@@ -234,9 +237,10 @@ Result<std::optional<SchemaFieldConstRef>> MapType::GetFieldByName(
     }
     return std::nullopt;
   }
-  if (StringUtils::ToLower(name) == kKeyName) {
+  const auto lower_case_name = StringUtils::ToLower(name);
+  if (lower_case_name == kKeyName) {
     return key();
-  } else if (StringUtils::ToLower(name) == kValueName) {
+  } else if (lower_case_name == kValueName) {
     return value();
   }
   return std::nullopt;
