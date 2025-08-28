@@ -318,7 +318,7 @@ TEST(TypeTest, List) {
     auto result = list.GetFieldByIndex(5);
     ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
     ASSERT_THAT(result.error().message,
-                ::testing::HasSubstr("index 5 is out of range[0, 1)"));
+                ::testing::HasSubstr("Invalid index 5 to get field from list"));
     ASSERT_THAT(list.GetFieldByIndex(0), ::testing::Optional(field));
     ASSERT_THAT(list.GetFieldByName("element"), ::testing::Optional(field));
 
@@ -326,11 +326,11 @@ TEST(TypeTest, List) {
     result = list.GetFieldByIndex(1);
     ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
     ASSERT_THAT(result.error().message,
-                ::testing::HasSubstr("index 1 is out of range[0, 1)"));
+                ::testing::HasSubstr("Invalid index 1 to get field from list"));
     result = list.GetFieldByIndex(-1);
     ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
     ASSERT_THAT(result.error().message,
-                ::testing::HasSubstr("index -1 is out of range[0, 1)"));
+                ::testing::HasSubstr("Invalid index -1 to get field from list"));
     ASSERT_EQ(std::nullopt, list.GetFieldByName("foo"));
   }
   ASSERT_THAT(
@@ -362,11 +362,11 @@ TEST(TypeTest, Map) {
     auto result = map.GetFieldByIndex(2);
     ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
     ASSERT_THAT(result.error().message,
-                ::testing::HasSubstr("index 2 is out of range[0, 2)"));
+                ::testing::HasSubstr("Invalid index 2 to get field from map"));
     result = map.GetFieldByIndex(-1);
     ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
     ASSERT_THAT(result.error().message,
-                ::testing::HasSubstr("index -1 is out of range[0, 2)"));
+                ::testing::HasSubstr("Invalid index -1 to get field from map"));
     ASSERT_EQ(std::nullopt, map.GetFieldByName("element"));
   }
   ASSERT_THAT(
@@ -407,11 +407,11 @@ TEST(TypeTest, Struct) {
     auto result = struct_.GetFieldByIndex(2);
     ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
     ASSERT_THAT(result.error().message,
-                ::testing::HasSubstr("index 2 is out of range[0, 2)"));
+                ::testing::HasSubstr("Invalid index 2 to get field from struct"));
     result = struct_.GetFieldByIndex(-1);
     ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
     ASSERT_THAT(result.error().message,
-                ::testing::HasSubstr("index -1 is out of range[0, 2)"));
+                ::testing::HasSubstr("Invalid index -1 to get field from struct"));
     ASSERT_EQ(std::nullopt, struct_.GetFieldByName("element"));
   }
 }
