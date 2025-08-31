@@ -35,8 +35,8 @@ class IdToFieldVisitor {
   explicit IdToFieldVisitor(
       std::unordered_map<int32_t, std::reference_wrapper<const SchemaField>>&
           id_to_field);
-  Status Visit(const Type& type);
-  Status VisitNestedType(const Type& type);
+  Status Visit(const PrimitiveType& type);
+  Status Visit(const NestedType& type);
 
  private:
   std::unordered_map<int32_t, std::reference_wrapper<const SchemaField>>& id_to_field_;
@@ -147,14 +147,9 @@ IdToFieldVisitor::IdToFieldVisitor(
     std::unordered_map<int32_t, std::reference_wrapper<const SchemaField>>& id_to_field)
     : id_to_field_(id_to_field) {}
 
-Status IdToFieldVisitor::Visit(const Type& type) {
-  if (type.is_nested()) {
-    ICEBERG_RETURN_UNEXPECTED(VisitNestedType(type));
-  }
-  return {};
-}
+Status IdToFieldVisitor::Visit(const PrimitiveType& type) { return {}; }
 
-Status IdToFieldVisitor::VisitNestedType(const Type& type) {
+Status IdToFieldVisitor::Visit(const NestedType& type) {
   const auto& nested = iceberg::internal::checked_cast<const NestedType&>(type);
   const auto& fields = nested.fields();
   for (const auto& field : fields) {
@@ -162,7 +157,7 @@ Status IdToFieldVisitor::VisitNestedType(const Type& type) {
     if (!it.second) {
       return InvalidSchema("Duplicate field id found: {}", field.field_id());
     }
-    ICEBERG_RETURN_UNEXPECTED(Visit(*field.type()));
+    ICEBERG_RETURN_UNEXPECTED(VisitTypeInline(*field.type(), this));
   }
   return {};
 }
@@ -256,7 +251,6 @@ std::string NameToIdVisitor::BuildPath(std::string_view prefix,
   }
   return prefix.empty() ? StringUtils::ToLower(quoted_name)
                         : std::string(prefix) + "." + StringUtils::ToLower(quoted_name);
-  ;
 }
 
 void NameToIdVisitor::Finish() {
