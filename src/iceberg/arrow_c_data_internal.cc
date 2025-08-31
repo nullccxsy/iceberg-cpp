@@ -57,20 +57,16 @@ std::pair<ArrowSchema, ArrowArray> CreateExampleArrowSchemaAndArrayByNanoarrow()
   ArrowArray* int64_array = out_array.children[0];
   ArrowArray* string_array = out_array.children[1];
 
-  NANOARROW_THROW_NOT_OK(ArrowArrayStartAppending(int64_array));
-  NANOARROW_THROW_NOT_OK(ArrowArrayStartAppending(string_array));
+  NANOARROW_THROW_NOT_OK(ArrowArrayStartAppending(&out_array));
 
   for (int64_t i = 0; i < kNumValues; i++) {
     NANOARROW_THROW_NOT_OK(ArrowArrayAppendInt(int64_array, int64_values[i]));
     NANOARROW_THROW_NOT_OK(
         ArrowArrayAppendString(string_array, ArrowCharView(string_values[i].c_str())));
+    NANOARROW_THROW_NOT_OK(ArrowArrayFinishElement(&out_array));
   }
 
-  NANOARROW_THROW_NOT_OK(ArrowArrayFinishBuildingDefault(int64_array, nullptr));
-  NANOARROW_THROW_NOT_OK(ArrowArrayFinishBuildingDefault(string_array, nullptr));
-
-  out_array.length = kNumValues;
-  out_array.null_count = 0;
+  NANOARROW_THROW_NOT_OK(ArrowArrayFinishBuildingDefault(&out_array, nullptr));
 
   return {out_schema, out_array};
 }
