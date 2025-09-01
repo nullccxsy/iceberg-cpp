@@ -121,9 +121,9 @@ Status StructType::InitFieldByLowerCaseName() const {
     auto it =
         field_by_lowercase_name_.try_emplace(StringUtils::ToLower(field.name()), field);
     if (!it.second) {
-      return InvalidSchema("Duplicate field name found: {} (prev id: {}, curr id: {})",
-                           it.first->first, it.first->second.get().field_id(),
-                           field.field_id());
+      return InvalidSchema(
+          "Duplicate lowercase field name found: {} (prev id: {}, curr id: {})",
+          it.first->first, it.first->second.get().field_id(), field.field_id());
     }
   }
   return {};

@@ -27,6 +27,7 @@
 
 #include "iceberg/schema_field.h"
 #include "iceberg/util/formatter.h"  // IWYU pragma: keep
+#include "matchers.h"
 
 TEST(SchemaTest, Basics) {
   {
@@ -48,13 +49,13 @@ TEST(SchemaTest, Basics) {
 
     ASSERT_EQ(std::nullopt, schema.GetFieldById(0));
     auto result = schema.GetFieldByIndex(2);
-    ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
-    ASSERT_THAT(result.error().message,
-                ::testing::HasSubstr("Invalid index 2 to get field from struct"));
+    ASSERT_THAT(result, IsError(iceberg::ErrorKind::kInvalidArgument));
+    ASSERT_THAT(result,
+                iceberg::HasErrorMessage("Invalid index 2 to get field from struct"));
     result = schema.GetFieldByIndex(-1);
-    ASSERT_EQ(result.error().kind, iceberg::ErrorKind::kInvalidArgument);
-    ASSERT_THAT(result.error().message,
-                ::testing::HasSubstr("Invalid index -1 to get field from struct"));
+    ASSERT_THAT(result, IsError(iceberg::ErrorKind::kInvalidArgument));
+    ASSERT_THAT(result,
+                iceberg::HasErrorMessage("Invalid index -1 to get field from struct"));
     ASSERT_EQ(std::nullopt, schema.GetFieldByName("element"));
   }
 }
