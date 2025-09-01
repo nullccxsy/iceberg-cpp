@@ -75,27 +75,25 @@ class ICEBERG_EXPORT Schema : public StructType {
   friend bool operator==(const Schema& lhs, const Schema& rhs) { return lhs.Equals(rhs); }
 
  private:
-  /// Mapping from field id to field.
-  mutable std::unordered_map<int32_t, std::reference_wrapper<const SchemaField>>
-      id_to_field_;
-  /// Mapping from field name to field id.
-  mutable std::unordered_map<std::string, int32_t, string_hash, std::equal_to<>>
-      name_to_id_;
-  /// Mapping from lowercased field name to field id
-  mutable std::unordered_map<std::string, int32_t, string_hash, std::equal_to<>>
-      lowercase_name_to_id_;
-
- private:
   /// \brief Compare two schemas for equality.
   [[nodiscard]] bool Equals(const Schema& other) const;
-
-  const std::optional<int32_t> schema_id_;
 
   // TODO(nullccxsy): Address potential concurrency issues in lazy initialization (e.g.,
   // use std::call_once)
   Status InitIdToFieldMap() const;
   Status InitNameToIdMap() const;
   Status InitLowerCaseNameToIdMap() const;
+
+  const std::optional<int32_t> schema_id_;
+  /// Mapping from field id to field.
+  mutable std::unordered_map<int32_t, std::reference_wrapper<const SchemaField>>
+      id_to_field_;
+  /// Mapping from field name to field id.
+  mutable std::unordered_map<std::string, int32_t, StringHash, std::equal_to<>>
+      name_to_id_;
+  /// Mapping from lowercased field name to field id
+  mutable std::unordered_map<std::string, int32_t, StringHash, std::equal_to<>>
+      lowercase_name_to_id_;
 };
 
 }  // namespace iceberg

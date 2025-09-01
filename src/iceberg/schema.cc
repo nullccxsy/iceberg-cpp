@@ -45,7 +45,7 @@ class IdToFieldVisitor {
 class NameToIdVisitor {
  public:
   explicit NameToIdVisitor(
-      std::unordered_map<std::string, int32_t, string_hash, std::equal_to<>>& name_to_id,
+      std::unordered_map<std::string, int32_t, StringHash, std::equal_to<>>& name_to_id,
       bool case_sensitive = true,
       std::function<std::string(std::string_view)> quoting_func = {});
   Status Visit(const ListType& type, const std::string& path,
@@ -64,9 +64,8 @@ class NameToIdVisitor {
 
  private:
   bool case_sensitive_;
-  std::unordered_map<std::string, int32_t, string_hash, std::equal_to<>>& name_to_id_;
-  std::unordered_map<std::string, int32_t, string_hash, std::equal_to<>>
-      short_name_to_id_;
+  std::unordered_map<std::string, int32_t, StringHash, std::equal_to<>>& name_to_id_;
+  std::unordered_map<std::string, int32_t, StringHash, std::equal_to<>> short_name_to_id_;
   std::function<std::string(std::string_view)> quoting_func_;
 };
 
@@ -150,7 +149,7 @@ IdToFieldVisitor::IdToFieldVisitor(
 Status IdToFieldVisitor::Visit(const PrimitiveType& type) { return {}; }
 
 Status IdToFieldVisitor::Visit(const NestedType& type) {
-  const auto& nested = iceberg::internal::checked_cast<const NestedType&>(type);
+  const auto& nested = internal::checked_cast<const NestedType&>(type);
   const auto& fields = nested.fields();
   for (const auto& field : fields) {
     auto it = id_to_field_.try_emplace(field.field_id(), std::cref(field));
@@ -163,7 +162,7 @@ Status IdToFieldVisitor::Visit(const NestedType& type) {
 }
 
 NameToIdVisitor::NameToIdVisitor(
-    std::unordered_map<std::string, int32_t, string_hash, std::equal_to<>>& name_to_id,
+    std::unordered_map<std::string, int32_t, StringHash, std::equal_to<>>& name_to_id,
     bool case_sensitive, std::function<std::string(std::string_view)> quoting_func)
     : name_to_id_(name_to_id),
       case_sensitive_(case_sensitive),
