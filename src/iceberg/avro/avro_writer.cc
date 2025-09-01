@@ -26,14 +26,17 @@
 #include <arrow/record_batch.h>
 #include <arrow/result.h>
 #include <avro/DataFile.hh>
+#include <avro/Generic.hh>
 #include <avro/GenericDatum.hh>
 
 #include "iceberg/arrow/arrow_error_transform_internal.h"
 #include "iceberg/arrow/arrow_fs_file_io_internal.h"
+#include "iceberg/avro/avro_data_util_internal.h"
 #include "iceberg/avro/avro_register.h"
 #include "iceberg/avro/avro_schema_util_internal.h"
 #include "iceberg/avro/avro_stream_internal.h"
 #include "iceberg/schema.h"
+#include "iceberg/schema_internal.h"
 #include "iceberg/util/checked_cast.h"
 #include "iceberg/util/macros.h"
 
@@ -73,9 +76,22 @@ class AvroWriter::Impl {
     return {};
   }
 
-  Status Write(ArrowArray /*data*/) {
-    // TODO(xiao.dong) convert data and write to avro
-    // total_bytes_+= written_bytes;
+  Status Write(ArrowArray data) {
+    ArrowSchema arrow_schema;
+    ICEBERG_RETURN_UNEXPECTED(ToArrowSchema(*write_schema_, &arrow_schema));
+    auto import_result = ::arrow::ImportArray(&data, &arrow_schema);
+    if (!import_result.ok()) {
+      std::cout << import_result.status() << std::endl;
+      return InvalidArgument("Failed to import ArrowArray: {}",
+                             import_result.status().ToString());
+    }
+
+    auto arrow_array = import_result.ValueOrDie();
+    ::avro::GenericDatum datum(*avro_schema_);
+    for (int64_t i = 0; i < arrow_array->length(); i++) {
+      ICEBERG_RETURN_UNEXPECTED(ExtractDatumFromArray(*arrow_array, i, &datum));
+      writer_->write(datum);
+    }
     return {};
   }
 
