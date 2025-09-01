@@ -19,7 +19,6 @@
 
 #include "iceberg/schema.h"
 
-#include <algorithm>
 #include <format>
 #include <functional>
 
