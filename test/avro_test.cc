@@ -125,7 +125,7 @@ class AvroReaderTest : public TempFileTestBase {
 
     auto writer_result = WriterFactoryRegistry::Open(
         FileFormatType::kAvro,
-        {.path = temp_avro_file_, .io = file_io_, .schema = schema});
+        {.path = temp_avro_file_, .schema = schema, .io = file_io_});
     ASSERT_TRUE(writer_result.has_value());
     auto writer = std::move(writer_result.value());
     ASSERT_THAT(writer->Write(arrow_array), IsOk());
