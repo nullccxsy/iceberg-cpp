@@ -87,6 +87,8 @@ class AvroOutputStream : public ::avro::OutputStream {
   /// store, if any.
   void flush() override;
 
+  std::shared_ptr<::arrow::io::OutputStream> get_output_stream() const;
+
  private:
   std::shared_ptr<::arrow::io::OutputStream> output_stream_;
   const int64_t buffer_size_;

@@ -27,7 +27,6 @@
 #include <avro/Generic.hh>
 #include <avro/GenericDatum.hh>
 #include <gtest/gtest.h>
-#include <nanoarrow/nanoarrow.hpp>
 
 #include "iceberg/arrow/arrow_fs_file_io_internal.h"
 #include "iceberg/avro/avro_register.h"
@@ -107,19 +106,34 @@ class AvroReaderTest : public TempFileTestBase {
     ASSERT_FALSE(data.value().has_value());
   }
 
-  void WriteAndVerify(std::shared_ptr<Schema> schema, const std::string& expected_string,
-                      ArrowArray array) {
-    iceberg::WriterOptions options;
-    options.schema = schema;
-    options.path = temp_avro_file_;
-    options.io = file_io_;
+  void WriteAndVerify(std::shared_ptr<Schema> schema,
+                      const std::string& expected_string) {
+    ArrowSchema arrow_c_schema;
+    ASSERT_THAT(ToArrowSchema(*schema, &arrow_c_schema), IsOk());
 
-    auto writer_result =
-        iceberg::WriterFactoryRegistry::Open(iceberg::FileFormatType::kAvro, options);
+    auto arrow_schema_result = ::arrow::ImportType(&arrow_c_schema);
+    ASSERT_TRUE(arrow_schema_result.ok());
+    auto arrow_schema = arrow_schema_result.ValueOrDie();
+
+    auto array_result = ::arrow::json::ArrayFromJSONString(arrow_schema, expected_string);
+    ASSERT_TRUE(array_result.ok());
+    auto array = array_result.ValueOrDie();
+
+    struct ArrowArray arrow_array;
+    auto export_result = ::arrow::ExportArray(*array, &arrow_array);
+    ASSERT_TRUE(export_result.ok());
+
+    auto writer_result = WriterFactoryRegistry::Open(
+        FileFormatType::kAvro,
+        {.path = temp_avro_file_, .io = file_io_, .schema = schema});
     ASSERT_TRUE(writer_result.has_value());
-    auto writer = std::move(writer_result).value();
-    ASSERT_THAT(writer->Write(array), IsOk());
+    auto writer = std::move(writer_result.value());
+    ASSERT_THAT(writer->Write(arrow_array), IsOk());
     ASSERT_THAT(writer->Close(), IsOk());
+
+    auto file_info_result = local_fs_->GetFileInfo(temp_avro_file_);
+    ASSERT_TRUE(file_info_result.ok());
+    ASSERT_EQ(file_info_result->size(), writer->length().value());
 
     auto reader_result = ReaderFactoryRegistry::Open(
         FileFormatType::kAvro,
@@ -127,7 +141,6 @@ class AvroReaderTest : public TempFileTestBase {
     ASSERT_THAT(reader_result, IsOk());
     auto reader = std::move(reader_result.value());
     ASSERT_NO_FATAL_FAILURE(VerifyNextBatch(*reader, expected_string));
-
     ASSERT_NO_FATAL_FAILURE(VerifyExhausted(*reader));
   }
 
@@ -191,30 +204,13 @@ TEST_F(AvroReaderTest, AvroWriterBasicType) {
   auto schema = std::make_shared<iceberg::Schema>(std::vector<SchemaField>{
       SchemaField::MakeRequired(1, "name", std::make_shared<StringType>())});
 
-  ArrowSchema struct_schema;
-  ASSERT_THAT(ToArrowSchema(*schema, &struct_schema), IsOk());
-
-  ArrowArray array;
-  NANOARROW_THROW_NOT_OK(ArrowArrayInitFromSchema(&array, &struct_schema, nullptr));
-  NANOARROW_THROW_NOT_OK(ArrowArrayStartAppending(&array));
-
-  std::vector<std::string> str_values{"Hello", "世界", "nanoarrow"};
   std::string expected_string = R"([["Hello"], ["世界"], ["nanoarrow"]])";
 
-  for (const auto& element : str_values) {
-    NANOARROW_THROW_NOT_OK(
-        ArrowArrayAppendString(array.children[0], ArrowCharView(element.c_str())));
-    NANOARROW_THROW_NOT_OK(ArrowArrayFinishElement(&array));
-  }
-  NANOARROW_THROW_NOT_OK(ArrowArrayFinishBuildingDefault(&array, nullptr));
-
-  WriteAndVerify(schema, expected_string, array);
-
-  ArrowSchemaRelease(&struct_schema);
+  WriteAndVerify(schema, expected_string);
 }
 
 TEST_F(AvroReaderTest, AvroWriterNestedType) {
-  auto nested_schema = std::make_shared<iceberg::Schema>(std::vector<SchemaField>{
+  auto schema = std::make_shared<iceberg::Schema>(std::vector<SchemaField>{
       SchemaField::MakeRequired(1, "id", std::make_shared<IntType>()),
       SchemaField::MakeRequired(
           2, "info",
@@ -222,36 +218,10 @@ TEST_F(AvroReaderTest, AvroWriterNestedType) {
               SchemaField::MakeRequired(3, "name", std::make_shared<StringType>()),
               SchemaField::MakeRequired(4, "age", std::make_shared<IntType>())}))});
 
-  ArrowSchema struct_schema;
-  ASSERT_THAT(ToArrowSchema(*nested_schema, &struct_schema), IsOk());
-
-  ArrowArray array;
-  NANOARROW_THROW_NOT_OK(ArrowArrayInitFromSchema(&array, &struct_schema, nullptr));
-
-  std::vector<int> int_array = {1, 2, 3};
-  std::vector<std::pair<std::string, int>> info_array = {
-      {"Alice", 25}, {"Bob", 30}, {"Ivy", 35}};
-
   std::string expected_string =
       R"([[1, ["Alice", 25]], [2, ["Bob", 30]], [3, ["Ivy", 35]]])";
 
-  NANOARROW_THROW_NOT_OK(ArrowArrayStartAppending(&array));
-
-  for (int i = 0; i < int_array.size(); i++) {
-    NANOARROW_THROW_NOT_OK(ArrowArrayAppendInt(array.children[0], int_array[i]));
-
-    NANOARROW_THROW_NOT_OK(ArrowArrayAppendString(
-        array.children[1]->children[0], ArrowCharView(info_array[i].first.c_str())));
-    NANOARROW_THROW_NOT_OK(
-        ArrowArrayAppendInt(array.children[1]->children[1], info_array[i].second));
-
-    NANOARROW_THROW_NOT_OK(ArrowArrayFinishElement(array.children[1]));
-    NANOARROW_THROW_NOT_OK(ArrowArrayFinishElement(&array));
-  }
-
-  NANOARROW_THROW_NOT_OK(ArrowArrayFinishBuildingDefault(&array, nullptr));
-  WriteAndVerify(nested_schema, expected_string, array);
-  ArrowSchemaRelease(&struct_schema);
+  WriteAndVerify(schema, expected_string);
 }
 
 }  // namespace iceberg::avro

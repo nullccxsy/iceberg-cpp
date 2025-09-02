@@ -70,28 +70,23 @@ class AvroWriter::Impl {
     constexpr int64_t kDefaultBufferSize = 1024 * 1024;
     ICEBERG_ASSIGN_OR_RAISE(auto output_stream,
                             CreateOutputStream(options, kDefaultBufferSize));
-
+    arrow_output_stream_ = output_stream->get_output_stream();
     writer_ = std::make_unique<::avro::DataFileWriter<::avro::GenericDatum>>(
         std::move(output_stream), *avro_schema_);
+    datum_ = std::make_unique<::avro::GenericDatum>(*avro_schema_);
+    ICEBERG_RETURN_UNEXPECTED(ToArrowSchema(*write_schema_, &arrow_schema_));
     return {};
   }
 
   Status Write(ArrowArray data) {
-    ArrowSchema arrow_schema;
-    ICEBERG_RETURN_UNEXPECTED(ToArrowSchema(*write_schema_, &arrow_schema));
-    auto import_result = ::arrow::ImportArray(&data, &arrow_schema);
-    if (!import_result.ok()) {
-      std::cout << import_result.status() << std::endl;
-      return InvalidArgument("Failed to import ArrowArray: {}",
-                             import_result.status().ToString());
+    ICEBERG_ARROW_ASSIGN_OR_RETURN(auto result,
+                                   ::arrow::ImportArray(&data, &arrow_schema_));
+
+    for (int64_t i = 0; i < result->length(); i++) {
+      ICEBERG_RETURN_UNEXPECTED(ExtractDatumFromArray(*result, i, datum_.get()));
+      writer_->write(*datum_);
     }
 
-    auto arrow_array = import_result.ValueOrDie();
-    ::avro::GenericDatum datum(*avro_schema_);
-    for (int64_t i = 0; i < arrow_array->length(); i++) {
-      ICEBERG_RETURN_UNEXPECTED(ExtractDatumFromArray(*arrow_array, i, &datum));
-      writer_->write(datum);
-    }
     return {};
   }
 
@@ -99,6 +94,8 @@ class AvroWriter::Impl {
     if (writer_ != nullptr) {
       writer_->close();
       writer_.reset();
+      ICEBERG_ARROW_ASSIGN_OR_RETURN(total_bytes_, arrow_output_stream_->Tell());
+      ICEBERG_ARROW_RETURN_NOT_OK(arrow_output_stream_->Close());
     }
     return {};
   }
@@ -115,6 +112,12 @@ class AvroWriter::Impl {
   std::shared_ptr<::avro::ValidSchema> avro_schema_;
   // The avro writer to write the data into a datum.
   std::unique_ptr<::avro::DataFileWriter<::avro::GenericDatum>> writer_;
+  // Arrow schema for data conversion (C API format)
+  ArrowSchema arrow_schema_;
+  // Reusable Avro datum for writing individual records
+  std::unique_ptr<::avro::GenericDatum> datum_;
+  // Arrow output stream for writing data to filesystem
+  std::shared_ptr<::arrow::io::OutputStream> arrow_output_stream_;
 };
 
 AvroWriter::~AvroWriter() = default;
