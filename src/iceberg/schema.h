@@ -27,6 +27,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "iceberg/iceberg_export.h"
@@ -42,7 +43,8 @@ namespace iceberg {
 /// A schema is a list of typed columns, along with a unique integer ID.  A
 /// Table may have different schemas over its lifetime due to schema
 /// evolution.
-class ICEBERG_EXPORT Schema : public StructType {
+class ICEBERG_EXPORT Schema : public StructType,
+                              public std::enable_shared_from_this<Schema> {
  public:
   static constexpr int32_t kInitialSchemaId = 0;
 
@@ -53,9 +55,9 @@ class ICEBERG_EXPORT Schema : public StructType {
   ///
   /// A schema is identified by a unique ID for the purposes of schema
   /// evolution.
-  [[nodiscard]] std::optional<int32_t> schema_id() const;
+  std::optional<int32_t> schema_id() const;
 
-  [[nodiscard]] std::string ToString() const override;
+  std::string ToString() const override;
 
   /// \brief Find the SchemaField by field name.
   ///
@@ -66,12 +68,31 @@ class ICEBERG_EXPORT Schema : public StructType {
   /// canonical name 'm.value.x'
   /// FIXME: Currently only handles ASCII lowercase conversion; extend to support
   /// non-ASCII characters (e.g., using std::towlower or ICU)
-  [[nodiscard]] Result<std::optional<std::reference_wrapper<const SchemaField>>>
-  FindFieldByName(std::string_view name, bool case_sensitive = true) const;
+  Result<std::optional<std::reference_wrapper<const SchemaField>>> FindFieldByName(
+      std::string_view name, bool case_sensitive = true) const;
 
   /// \brief Find the SchemaField by field id.
-  [[nodiscard]] Result<std::optional<std::reference_wrapper<const SchemaField>>>
-  FindFieldById(int32_t field_id) const;
+  Result<std::optional<std::reference_wrapper<const SchemaField>>> FindFieldById(
+      int32_t field_id) const;
+
+  /// \brief Creates a projection schema for a subset of columns, selected by name.
+  Result<std::shared_ptr<const Schema>> select(const std::vector<std::string>& names,
+                                               bool case_sensitive = true) const;
+
+  /// \brief Creates a projection schema for a subset of columns, selected by name.
+  Result<std::shared_ptr<const Schema>> select(
+      const std::initializer_list<std::string>& names, bool case_sensitive = true) const;
+
+  /// \brief Creates a projection schema for a subset of columns, selected by name.
+  template <typename... Args>
+  Result<std::shared_ptr<const Schema>> select(Args&&... names,
+                                               bool case_sensitive = true) const {
+    static_assert((std::is_convertible_v<Args, std::string> && ...),
+                  "All arguments must be convertible to std::string");
+    return select({std::string(names)...}, case_sensitive);
+  }
+
+  Result<std::shared_ptr<const Schema>> project(std::unordered_set<int32_t>& ids) const;
 
   friend bool operator==(const Schema& lhs, const Schema& rhs) { return lhs.Equals(rhs); }
 

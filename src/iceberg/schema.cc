@@ -260,4 +260,259 @@ void NameToIdVisitor::Finish() {
   }
 }
 
+class PruneColumnVisitor {
+ public:
+  explicit PruneColumnVisitor(const std::unordered_set<int32_t>& selected_ids,
+                              bool select_full_types = false);
+  Status Visit(const ListType& type);
+  Status Visit(const MapType& type);
+  Status Visit(const StructType& type);
+  Status Visit(const PrimitiveType& type);
+  std::shared_ptr<const Type> GetResult() const;
+  void SetResult(std::shared_ptr<const Type> result);
+  Status ProjectList(const SchemaField& element,
+                     std::shared_ptr<const Type> element_result);
+  Status ProjectMap(const SchemaField& key_field, const SchemaField& value_field,
+                    std::shared_ptr<const Type> value_result);
+
+ private:
+  const std::unordered_set<int32_t>& selected_ids_;
+  bool select_full_types_;
+  std::shared_ptr<const Type> result_;
+};
+
+Result<std::shared_ptr<const Schema>> Schema::select(
+    const std::vector<std::string>& names, bool case_sensitive) const {
+  return internalSelect(names, case_sensitive);
+}
+
+Result<std::shared_ptr<const Schema>> Schema::select(
+    const std::initializer_list<std::string>& names, bool case_sensitive) const {
+  return internalSelect(std::vector<std::string>(names), case_sensitive);
+}
+
+Result<std::shared_ptr<const Schema>> Schema::internalSelect(
+    const std::vector<std::string>& names, bool case_sensitive) const {
+  const std::string ALL_COLUMNS = "*";
+  if (std::ranges::find(names, ALL_COLUMNS) != names.end()) {
+    return shared_from_this();
+  }
+
+  std::unordered_set<int32_t> selected_ids;
+  for (const auto& name : names) {
+    ICEBERG_ASSIGN_OR_RAISE(auto result, FindFieldByName(name, case_sensitive));
+    if (result.has_value()) {
+      selected_ids.insert(result.value().get().field_id());
+    }
+  }
+
+  PruneColumnVisitor visitor(selected_ids, /*select_full_types=*/true);
+  ICEBERG_RETURN_UNEXPECTED(VisitTypeInline(*this, &visitor));
+
+  auto projected_type = visitor.GetResult();
+  if (!projected_type) {
+    return std::make_shared<Schema>(std::vector<SchemaField>{}, schema_id_);
+  }
+
+  if (projected_type->type_id() != TypeId::kStruct) {
+    return InvalidSchema("Projected type must be a struct type");
+  }
+
+  const auto& projected_struct =
+      internal::checked_cast<const StructType&>(*projected_type);
+
+  std::vector<SchemaField> fields_vec(projected_struct.fields().begin(),
+                                      projected_struct.fields().end());
+  return std::make_shared<Schema>(std::move(fields_vec), schema_id_);
+}
+
+Result<std::shared_ptr<const Schema>> Schema::project(
+    std::unordered_set<int32_t>& selected_ids) const {
+  PruneColumnVisitor visitor(selected_ids, /*select_full_types=*/false);
+  ICEBERG_RETURN_UNEXPECTED(VisitTypeInline(*this, &visitor));
+
+  auto projected_type = visitor.GetResult();
+  if (!projected_type) {
+    return std::make_shared<Schema>(std::vector<SchemaField>{}, schema_id_);
+  }
+
+  if (projected_type->type_id() != TypeId::kStruct) {
+    return InvalidSchema("Projected type must be a struct type");
+  }
+
+  const auto& projected_struct =
+      internal::checked_cast<const StructType&>(*projected_type);
+  std::vector<SchemaField> fields_vec(projected_struct.fields().begin(),
+                                      projected_struct.fields().end());
+  return std::make_shared<Schema>(std::move(fields_vec), schema_id_);
+}
+
+PruneColumnVisitor::PruneColumnVisitor(const std::unordered_set<int32_t>& selected_ids,
+                                       bool select_full_types)
+    : selected_ids_(selected_ids), select_full_types_(select_full_types) {}
+
+std::shared_ptr<const Type> PruneColumnVisitor::GetResult() const { return result_; }
+
+void PruneColumnVisitor::SetResult(std::shared_ptr<const Type> result) {
+  result_ = std::move(result);
+}
+
+Status PruneColumnVisitor::Visit(const StructType& type) {
+  std::vector<std::shared_ptr<const Type>> selected_types;
+  const auto& fields = type.fields();
+  for (const auto& field : fields) {
+    PruneColumnVisitor field_visitor(selected_ids_, select_full_types_);
+    ICEBERG_RETURN_UNEXPECTED(VisitTypeInline(*field.type(), &field_visitor));
+    auto result = field_visitor.GetResult();
+    if (selected_ids_.contains(field.field_id())) {
+      // select
+      if (select_full_types_) {
+        selected_types.emplace_back(field.type());
+      } else if (field.type()->type_id() == TypeId::kStruct) {
+        // project(kstruct)
+        if (!result) {
+          result = std::make_shared<StructType>(std::vector<SchemaField>{});
+        }
+        selected_types.emplace_back(std::move(result));
+      } else {
+        // project(list, map, primitive)
+        if (!field.type()->is_primitive()) {
+          return InvalidArgument(
+              "Cannot explicitly project List or Map types, {}:{} of type {} was "
+              "selected",
+              field.field_id(), field.name(), field.type()->ToString());
+        }
+        selected_types.emplace_back(field.type());
+      }
+    } else if (result) {
+      // project, select
+      selected_types.emplace_back(std::move(result));
+    } else {
+      // project, select
+      selected_types.emplace_back(nullptr);
+    }
+  }
+
+  bool same_types = true;
+  std::vector<SchemaField> selected_fields;
+  for (size_t i = 0; i < fields.size(); i++) {
+    if (fields[i].type() == selected_types[i]) {
+      selected_fields.emplace_back(fields[i]);
+    } else if (selected_types[i]) {
+      same_types = false;
+      selected_fields.emplace_back(fields[i].field_id(), std::string(fields[i].name()),
+                                   std::const_pointer_cast<Type>(selected_types[i]),
+                                   fields[i].optional(), std::string(fields[i].doc()));
+    }
+  }
+
+  if (!selected_fields.empty()) {
+    if (selected_fields.size() == fields.size() && same_types) {
+      result_ = std::make_shared<StructType>(type);
+    } else {
+      result_ = std::make_shared<StructType>(std::move(selected_fields));
+    }
+  }
+
+  return {};
+}
+
+Status PruneColumnVisitor::Visit(const ListType& type) {
+  const auto& element_field = type.fields()[0];
+
+  PruneColumnVisitor element_visitor(selected_ids_, select_full_types_);
+  ICEBERG_RETURN_UNEXPECTED(VisitTypeInline(*element_field.type(), &element_visitor));
+
+  auto element_result = element_visitor.GetResult();
+
+  if (selected_ids_.contains(element_field.field_id())) {
+    if (select_full_types_) {
+      result_ = std::make_shared<ListType>(element_field);
+    } else if (element_field.type()->type_id() == TypeId::kStruct) {
+      ICEBERG_RETURN_UNEXPECTED(ProjectList(element_field, element_result));
+    } else {
+      if (!element_field.type()->is_primitive()) {
+        return InvalidArgument(
+            "Cannot explicitly project List or Map types, List element {} of type {} was "
+            "selected",
+            element_field.field_id(), element_field.name());
+      }
+      result_ = std::make_shared<ListType>(element_field);
+    }
+  } else if (element_result) {
+    ICEBERG_RETURN_UNEXPECTED(ProjectList(element_field, element_result));
+  }
+
+  return {};
+}
+
+Status PruneColumnVisitor::Visit(const MapType& type) {
+  const auto& key_field = type.fields()[0];
+  const auto& value_field = type.fields()[1];
+
+  PruneColumnVisitor key_visitor(selected_ids_, select_full_types_);
+  ICEBERG_RETURN_UNEXPECTED(VisitTypeInline(*key_field.type(), &key_visitor));
+  auto key_result = key_visitor.GetResult();
+
+  PruneColumnVisitor value_visitor(selected_ids_, select_full_types_);
+  ICEBERG_RETURN_UNEXPECTED(VisitTypeInline(*value_field.type(), &value_visitor));
+  auto value_result = value_visitor.GetResult();
+
+  if (selected_ids_.contains(value_field.field_id())) {
+    if (select_full_types_) {
+      result_ = std::make_shared<MapType>(type);
+    } else if (value_field.type()->type_id() == TypeId::kStruct) {
+      ICEBERG_RETURN_UNEXPECTED(ProjectMap(key_field, value_field, value_result));
+    } else {
+      if (!value_field.type()->is_primitive()) {
+        return InvalidArgument(
+            "Cannot explicitly project List or Map types, Map value {} of type {} was "
+            "selected",
+            value_field.field_id(), type.ToString());
+      }
+      result_ = std::make_shared<MapType>(type);
+    }
+  } else if (value_result) {
+    ICEBERG_RETURN_UNEXPECTED(ProjectMap(key_field, value_field, value_result));
+  } else if (selected_ids_.contains(key_field.field_id())) {
+    result_ = std::make_shared<MapType>(type);
+  }
+
+  return {};
+}
+
+Status PruneColumnVisitor::Visit(const PrimitiveType& type) { return {}; }
+
+Status PruneColumnVisitor::ProjectList(const SchemaField& element_field,
+                                       std::shared_ptr<const Type> element_result) {
+  if (!element_result) {
+    return InvalidArgument("Cannot project a list when the element result is null");
+  }
+  if (element_field.type() == element_result) {
+    result_ = std::make_shared<ListType>(element_field);
+  } else {
+    result_ = std::make_shared<ListType>(element_field.field_id(),
+                                         std::const_pointer_cast<Type>(element_result),
+                                         element_field.optional());
+  }
+  return {};
+}
+
+Status PruneColumnVisitor::ProjectMap(const SchemaField& key_field,
+                                      const SchemaField& value_field,
+                                      std::shared_ptr<const Type> value_result) {
+  if (!value_result) {
+    return InvalidArgument("Attempted to project a map without a defined map value type");
+  }
+  if (value_field.type() == value_result) {
+    result_ = std::make_shared<MapType>(key_field, value_field);
+  } else {
+    result_ = std::make_shared<MapType>(
+        key_field,
+        SchemaField(value_field.field_id(), std::string(value_field.name()),
+                    std::const_pointer_cast<Type>(value_result), value_field.optional()));
+  }
+  return {};
+}
+
 }  // namespace iceberg
