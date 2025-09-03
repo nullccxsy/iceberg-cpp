@@ -70,15 +70,13 @@ class ICEBERG_EXPORT PrimitiveType : public Type {
 
 /// \brief A data type that has child fields.
 class ICEBERG_EXPORT NestedType : public Type {
- protected:
-  using SchemaFieldConstRef = std::reference_wrapper<const SchemaField>;
-
  public:
   bool is_primitive() const override { return false; }
   bool is_nested() const override { return true; }
 
   /// \brief Get a view of the child fields.
   [[nodiscard]] virtual std::span<const SchemaField> fields() const = 0;
+  using SchemaFieldConstRef = std::reference_wrapper<const SchemaField>;
   /// \brief Get a field by field ID.
   ///
   /// \note This is O(1) complexity.
@@ -132,7 +130,6 @@ class ICEBERG_EXPORT StructType : public NestedType {
   Status InitFieldByName() const;
   Status InitFieldByLowerCaseName() const;
 
- protected:
   std::vector<SchemaField> fields_;
   mutable std::unordered_map<int32_t, SchemaFieldConstRef> field_by_id_;
   mutable std::unordered_map<std::string_view, SchemaFieldConstRef> field_by_name_;
