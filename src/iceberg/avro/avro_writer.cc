@@ -53,9 +53,6 @@ Result<std::unique_ptr<AvroOutputStream>> CreateOutputStream(const WriterOptions
 
 }  // namespace
 
-// A stateful context to keep track of the writing progress.
-struct WriteContext {};
-
 class AvroWriter::Impl {
  public:
   Status Open(const WriterOptions& options) {
@@ -70,7 +67,7 @@ class AvroWriter::Impl {
     constexpr int64_t kDefaultBufferSize = 1024 * 1024;
     ICEBERG_ASSIGN_OR_RAISE(auto output_stream,
                             CreateOutputStream(options, kDefaultBufferSize));
-    arrow_output_stream_ = output_stream->get_output_stream();
+    arrow_output_stream_ = output_stream->arrow_output_stream();
     writer_ = std::make_unique<::avro::DataFileWriter<::avro::GenericDatum>>(
         std::move(output_stream), *avro_schema_);
     datum_ = std::make_unique<::avro::GenericDatum>(*avro_schema_);
@@ -105,19 +102,19 @@ class AvroWriter::Impl {
   int64_t length() { return total_bytes_; }
 
  private:
-  int64_t total_bytes_ = 0;
   // The schema to write.
   std::shared_ptr<::iceberg::Schema> write_schema_;
   // The avro schema to write.
   std::shared_ptr<::avro::ValidSchema> avro_schema_;
+  // Arrow output stream of the Avro file to write
+  std::shared_ptr<::arrow::io::OutputStream> arrow_output_stream_;
   // The avro writer to write the data into a datum.
   std::unique_ptr<::avro::DataFileWriter<::avro::GenericDatum>> writer_;
-  // Arrow schema for data conversion (C API format)
-  ArrowSchema arrow_schema_;
-  // Reusable Avro datum for writing individual records
+  // Reusable Avro datum for writing individual records.
   std::unique_ptr<::avro::GenericDatum> datum_;
-  // Arrow output stream for writing data to filesystem
-  std::shared_ptr<::arrow::io::OutputStream> arrow_output_stream_;
+  // Arrow schema to write data.
+  ArrowSchema arrow_schema_;
+  int64_t total_bytes_ = 0;
 };
 
 AvroWriter::~AvroWriter() = default;

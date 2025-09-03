@@ -135,9 +135,11 @@ class AvroReaderTest : public TempFileTestBase {
     ASSERT_TRUE(file_info_result.ok());
     ASSERT_EQ(file_info_result->size(), writer->length().value());
 
-    auto reader_result = ReaderFactoryRegistry::Open(
-        FileFormatType::kAvro,
-        {.path = temp_avro_file_, .io = file_io_, .projection = schema});
+    auto reader_result = ReaderFactoryRegistry::Open(FileFormatType::kAvro,
+                                                     {.path = temp_avro_file_,
+                                                      .length = file_info_result->size(),
+                                                      .io = file_io_,
+                                                      .projection = schema});
     ASSERT_THAT(reader_result, IsOk());
     auto reader = std::move(reader_result.value());
     ASSERT_NO_FATAL_FAILURE(VerifyNextBatch(*reader, expected_string));

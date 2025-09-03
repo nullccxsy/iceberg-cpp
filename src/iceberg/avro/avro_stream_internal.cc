@@ -145,7 +145,8 @@ void AvroOutputStream::flush() {
   }
 }
 
-std::shared_ptr<::arrow::io::OutputStream> AvroOutputStream::get_output_stream() const {
+const std::shared_ptr<::arrow::io::OutputStream>& AvroOutputStream::arrow_output_stream()
+    const {
   return output_stream_;
 }
 
