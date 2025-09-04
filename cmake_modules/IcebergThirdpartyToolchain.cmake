@@ -254,17 +254,23 @@ function(resolve_nanoarrow_dependency)
     endif()
 
     set(NANOARROW_VENDORED TRUE)
-    set_target_properties(nanoarrow_static
-                          PROPERTIES OUTPUT_NAME "iceberg_vendored_nanoarrow"
-                                     POSITION_INDEPENDENT_CODE ON)
-    install(TARGETS nanoarrow_static
-            EXPORT iceberg_targets
-            RUNTIME DESTINATION "${ICEBERG_INSTALL_BINDIR}"
-            ARCHIVE DESTINATION "${ICEBERG_INSTALL_LIBDIR}"
-            LIBRARY DESTINATION "${ICEBERG_INSTALL_LIBDIR}")
+    if(TARGET nanoarrow_static)
+      set_target_properties(nanoarrow_static
+                            PROPERTIES OUTPUT_NAME "iceberg_vendored_nanoarrow"
+                                       POSITION_INDEPENDENT_CODE ON)
+      install(TARGETS nanoarrow_static
+              EXPORT iceberg_targets
+              RUNTIME DESTINATION "${ICEBERG_INSTALL_BINDIR}"
+              ARCHIVE DESTINATION "${ICEBERG_INSTALL_LIBDIR}"
+              LIBRARY DESTINATION "${ICEBERG_INSTALL_LIBDIR}")
+    endif()
   else()
     set(NANOARROW_VENDORED FALSE)
     list(APPEND ICEBERG_SYSTEM_DEPENDENCIES nanoarrow)
+
+    if(TARGET nanoarrow::nanoarrow AND NOT TARGET nanoarrow::nanoarrow_static)
+      add_library(nanoarrow::nanoarrow_static ALIAS nanoarrow::nanoarrow)
+    endif()
   endif()
 
   set(ICEBERG_SYSTEM_DEPENDENCIES
