@@ -97,7 +97,7 @@ class ICEBERG_EXPORT Schema : public StructType,
 
  private:
   /// \brief Compare two schemas for equality.
-  [[nodiscard]] bool Equals(const Schema& other) const;
+  bool Equals(const Schema& other) const;
 
   Result<std::shared_ptr<const Schema>> internalSelect(
       const std::vector<std::string>& names, bool case_sensitive) const;
