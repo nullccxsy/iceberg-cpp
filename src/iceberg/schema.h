@@ -98,7 +98,7 @@ class ICEBERG_EXPORT Schema : public StructType,
 
  private:
   /// \brief Compare two schemas for equality.
-  [[nodiscard]] bool Equals(const Schema& other) const;
+  bool Equals(const Schema& other) const;
 
   Status InitIdToFieldMap() const;
   Status InitNameToIdMap() const;
