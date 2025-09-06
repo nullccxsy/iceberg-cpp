@@ -509,12 +509,12 @@ TEST_P(SelectParamTest, SelectFields) {
   const auto& param = GetParam();
   auto input_schema = param.create_schema();
 
-  auto result = input_schema->select(param.select_fields, param.case_sensitive);
+  auto result = input_schema->Select(param.select_fields, param.case_sensitive);
 
   if (param.should_succeed) {
     ASSERT_TRUE(result.has_value()) << "Select should succeed for: " << param.test_name;
 
-    auto actual_schema = result.value();
+    auto actual_schema = std::move(result.value());
     auto expected_schema = param.expected_schema();
     ASSERT_EQ(*actual_schema, *expected_schema)
         << "Schema mismatch for: " << param.test_name;
@@ -938,12 +938,12 @@ TEST_P(ProjectParamTest, ProjectFields) {
   const auto& param = GetParam();
   auto input_schema = param.create_schema();
   auto selected_ids = param.selected_ids;
-  auto result = input_schema->project(selected_ids);
+  auto result = input_schema->Project(selected_ids);
 
   if (param.should_succeed) {
     ASSERT_TRUE(result.has_value()) << "Project should succeed for: " << param.test_name;
 
-    auto actual_schema = result.value();
+    auto actual_schema = std::move(result.value());
     auto expected_schema = param.expected_schema();
     ASSERT_EQ(*actual_schema, *expected_schema)
         << "Schema mismatch for: " << param.test_name;
