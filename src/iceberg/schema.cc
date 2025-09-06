@@ -447,11 +447,11 @@ class PruneColumnVisitor {
   }
 
   Status ProjectStruct(const SchemaField& field, std::unique_ptr<Type>* out) const {
-    if (out && (*out)->type_id() != TypeId::kStruct) {
+    if (*out && (*out)->type_id() != TypeId::kStruct) {
       return InvalidArgument("Project struct {}:{}, but result is not StructType",
                              field.name(), field.field_id());
     }
-    if (out == nullptr) {
+    if (*out == nullptr) {
       *out = std::make_unique<StructType>(std::vector<SchemaField>{});
     }
     return {};
