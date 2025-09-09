@@ -83,27 +83,6 @@ class ICEBERG_EXPORT Schema : public StructType {
   /// \param names Field names to select (supports nested field paths)
   /// \param case_sensitive Whether name matching is case-sensitive (default: true)
   /// \return Projected schema containing only the specified fields
-  ///
-  /// \example
-  /// \code
-  /// // Original schema: struct {
-  /// //   id: int,
-  /// //   user: struct {
-  /// //     name: string,
-  /// //     address: struct { street: string, city: string }
-  /// //   }
-  /// // }
-  ///
-  /// // Select by names - you must specify the exact path
-  /// auto result1 = schema->Select({"id", "user.name"});
-  /// // Result: struct { id: int, user: struct { name: string } }
-  ///
-  /// auto result2 = schema->Select({"user.address.street"});
-  /// // Result: struct { user: struct { address: struct { street: string } } }
-  ///
-  /// auto result3 = schema->Select({"user.name"});
-  /// Result: struct { user: struct { name: string } }
-  /// \endcode
   Result<std::unique_ptr<const Schema>> Select(std::span<const std::string> names,
                                                bool case_sensitive = true) const;
 
@@ -134,32 +113,6 @@ class ICEBERG_EXPORT Schema : public StructType {
   ///       - If nested field IDs are also in field_ids, they are recursively projected
   ///       - If no nested field IDs are in field_ids, an empty struct is included
   ///       - List/Map types cannot be explicitly projected (returns error)
-  ///
-  /// \example
-  /// \code
-  /// // Original schema with field IDs:
-  /// // struct {
-  /// //   1: id: int,
-  /// //   2: user: struct {
-  /// //     3: name: string,
-  /// //     4: address: struct { 5: street: string, 6: city: string }
-  /// //   }
-  /// // }
-  ///
-  /// // Project by IDs - recursive behavior for structs
-  /// std::unordered_set<int32_t> ids1 = {1, 2, 3};  // id, user, user.name
-  /// auto result1 = schema->Project(ids1);
-  /// // Result: struct { id: int, user: struct { name: string } }
-  ///
-  /// std::unordered_set<int32_t> ids2 = {2};  // Only user struct
-  /// auto result2 = schema->Project(ids2);
-  /// // Result: struct { user: struct {} }  // Empty struct because no nested fields
-  /// selected
-  ///
-  /// std::unordered_set<int32_t> ids3 = {2, 5};  // user struct + street field
-  /// auto result3 = schema->Project(ids3);
-  /// // Result: struct { user: struct { address: struct { street: string } } }
-  /// \endcode
   Result<std::unique_ptr<const Schema>> Project(
       std::unordered_set<int32_t>& field_ids) const;
 

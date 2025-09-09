@@ -1240,44 +1240,206 @@ INSTANTIATE_TEST_SUITE_P(
     ProjectMapErrorTestCases, ProjectParamTest,
     ::testing::Values(
         ProjectTestParam{
-            .test_name = "ProjectMapTypeError",
+            .test_name = "ProjectMapWithOnlyKey",
             .create_schema =
                 []() {
-                  auto map_key = std::make_unique<iceberg::SchemaField>(
-                      1, "key", iceberg::string(), false);
-                  auto map_value = std::make_unique<iceberg::SchemaField>(
+                  // Create a map with key and value fields
+                  auto key_field = std::make_unique<iceberg::SchemaField>(
+                      1, "key", iceberg::int32(), false);
+                  auto value_field = std::make_unique<iceberg::SchemaField>(
                       2, "value", iceberg::string(), false);
                   auto map_type =
-                      std::make_shared<iceberg::MapType>(*map_key, *map_value);
-                  auto map_field = std::make_unique<iceberg::SchemaField>(
-                      3, "string_map", map_type, false);
-                  auto id_field = std::make_unique<iceberg::SchemaField>(
-                      4, "id", iceberg::int32(), false);
+                      std::make_shared<iceberg::MapType>(*key_field, *value_field);
+                  auto map_field = std::make_unique<iceberg::SchemaField>(3, "map_field",
+                                                                          map_type, true);
                   return std::make_shared<iceberg::Schema>(
-                      std::vector<iceberg::SchemaField>{*id_field, *map_field}, 100);
+                      std::vector<iceberg::SchemaField>{*map_field}, 100);
                 },
-            .selected_ids = {3},
+            .selected_ids = {1},  // Only select key field, not value field
             .expected_schema = []() { return nullptr; },
             .should_succeed = false,
             .expected_error_message =
-                R"(Cannot explicitly project List or Map types, 3:string_map of type map<key (1): string (required): value (2): string (required)> was selected)"},
+                "Cannot project Map with only key or value: key=present, value=null"},
 
         ProjectTestParam{
-            .test_name = "ProjectListTypeError",
+            .test_name = "ProjectMapWithOnlyValue",
             .create_schema =
                 []() {
-                  auto list_element = std::make_unique<iceberg::SchemaField>(
-                      1, "element", iceberg::int32(), false);
-                  auto list_type = std::make_shared<iceberg::ListType>(*list_element);
-                  auto list_field = std::make_unique<iceberg::SchemaField>(
-                      2, "int_list", list_type, false);
-                  auto id_field = std::make_unique<iceberg::SchemaField>(
-                      3, "id", iceberg::int32(), false);
+                  auto key_field = std::make_unique<iceberg::SchemaField>(
+                      1, "key", iceberg::int32(), false);
+                  auto value_field = std::make_unique<iceberg::SchemaField>(
+                      2, "value", iceberg::string(), false);
+                  auto map_type =
+                      std::make_shared<iceberg::MapType>(*key_field, *value_field);
+                  auto map_field = std::make_unique<iceberg::SchemaField>(3, "map_field",
+                                                                          map_type, true);
                   return std::make_shared<iceberg::Schema>(
-                      std::vector<iceberg::SchemaField>{*id_field, *list_field}, 100);
+                      std::vector<iceberg::SchemaField>{*map_field}, 100);
                 },
-            .selected_ids = {2},
+            .selected_ids = {2},  // Only select value field, not key field
             .expected_schema = []() { return nullptr; },
             .should_succeed = false,
             .expected_error_message =
-                R"(Cannot explicitly project List or Map types, 2:int_list of type list<element (1): int (required)> was selected)"}));
+                "Cannot project Map with only key or value: key=null, value=present"}));
+
+INSTANTIATE_TEST_SUITE_P(
+    ProjectListAndMapTestCases, ProjectParamTest,
+    ::testing::Values(
+        ProjectTestParam{
+            .test_name = "ProjectListElement",
+            .create_schema =
+                []() {
+                  // Create a list with nested struct element
+                  auto nested_field1 = std::make_unique<iceberg::SchemaField>(
+                      1, "name", iceberg::string(), true);
+                  auto nested_field2 = std::make_unique<iceberg::SchemaField>(
+                      2, "age", iceberg::int32(), true);
+                  auto struct_type = std::make_shared<iceberg::StructType>(
+                      std::vector<iceberg::SchemaField>{*nested_field1, *nested_field2});
+                  auto element_field = std::make_unique<iceberg::SchemaField>(
+                      3, "element", struct_type, false);
+                  auto list_type = std::make_shared<iceberg::ListType>(*element_field);
+                  auto list_field = std::make_unique<iceberg::SchemaField>(
+                      4, "list_field", list_type, true);
+                  return std::make_shared<iceberg::Schema>(
+                      std::vector<iceberg::SchemaField>{*list_field}, 100);
+                },
+            .selected_ids = {1},  // Only select name field from list element
+            .expected_schema =
+                []() {
+                  auto name_field = std::make_unique<iceberg::SchemaField>(
+                      1, "name", iceberg::string(), true);
+                  auto struct_type = std::make_shared<iceberg::StructType>(
+                      std::vector<iceberg::SchemaField>{*name_field});
+                  auto element_field = std::make_unique<iceberg::SchemaField>(
+                      3, "element", struct_type, false);
+                  auto list_type = std::make_shared<iceberg::ListType>(*element_field);
+                  auto list_field = std::make_unique<iceberg::SchemaField>(
+                      4, "list_field", list_type, true);
+                  return std::make_shared<iceberg::Schema>(
+                      std::vector<iceberg::SchemaField>{*list_field}, 100);
+                },
+            .should_succeed = true},
+
+        ProjectTestParam{
+            .test_name = "ProjectListOfMap",
+            .create_schema =
+                []() {
+                  // Create a list of map with nested fields
+                  auto map_key_field = std::make_unique<iceberg::SchemaField>(
+                      1, "key", iceberg::string(), false);
+                  auto map_value_field1 = std::make_unique<iceberg::SchemaField>(
+                      2, "value_name", iceberg::string(), false);
+                  auto map_value_field2 = std::make_unique<iceberg::SchemaField>(
+                      3, "value_age", iceberg::int32(), false);
+                  auto map_value_struct = std::make_shared<iceberg::StructType>(
+                      std::vector<iceberg::SchemaField>{*map_value_field1,
+                                                        *map_value_field2});
+                  auto map_value_field = std::make_unique<iceberg::SchemaField>(
+                      4, "value", map_value_struct, false);
+                  auto map_type = std::make_shared<iceberg::MapType>(*map_key_field,
+                                                                     *map_value_field);
+                  auto list_element = std::make_unique<iceberg::SchemaField>(
+                      5, "element", map_type, false);
+                  auto list_type = std::make_shared<iceberg::ListType>(*list_element);
+                  auto list_field = std::make_unique<iceberg::SchemaField>(
+                      6, "list_field", list_type, true);
+                  return std::make_shared<iceberg::Schema>(
+                      std::vector<iceberg::SchemaField>{*list_field}, 100);
+                },
+            .selected_ids = {1, 2},
+            .expected_schema =
+                []() {
+                  auto map_key_field = std::make_unique<iceberg::SchemaField>(
+                      1, "key", iceberg::string(), false);
+                  auto map_value_field1 = std::make_unique<iceberg::SchemaField>(
+                      2, "value_name", iceberg::string(), false);
+                  auto map_value_struct = std::make_shared<iceberg::StructType>(
+                      std::vector<iceberg::SchemaField>{*map_value_field1});
+                  auto map_value_field = std::make_unique<iceberg::SchemaField>(
+                      4, "value", map_value_struct, false);
+                  auto map_type = std::make_shared<iceberg::MapType>(*map_key_field,
+                                                                     *map_value_field);
+                  auto list_element = std::make_unique<iceberg::SchemaField>(
+                      5, "element", map_type, false);
+                  auto list_type = std::make_shared<iceberg::ListType>(*list_element);
+                  auto list_field = std::make_unique<iceberg::SchemaField>(
+                      6, "list_field", list_type, true);
+                  return std::make_shared<iceberg::Schema>(
+                      std::vector<iceberg::SchemaField>{*list_field}, 100);
+                },
+            .should_succeed = true},
+
+        ProjectTestParam{
+            .test_name = "ProjectMapKeyAndValue",
+            .create_schema =
+                []() {
+                  auto key_field1 = std::make_unique<iceberg::SchemaField>(
+                      1, "key_id", iceberg::int32(), false);
+                  auto key_field2 = std::make_unique<iceberg::SchemaField>(
+                      2, "key_name", iceberg::string(), false);
+                  auto key_struct = std::make_shared<iceberg::StructType>(
+                      std::vector<iceberg::SchemaField>{*key_field1, *key_field2});
+                  auto key_field =
+                      std::make_unique<iceberg::SchemaField>(3, "key", key_struct, false);
+
+                  auto value_field1 = std::make_unique<iceberg::SchemaField>(
+                      4, "value_id", iceberg::int32(), false);
+                  auto value_field2 = std::make_unique<iceberg::SchemaField>(
+                      5, "value_name", iceberg::string(), false);
+                  auto value_struct = std::make_shared<iceberg::StructType>(
+                      std::vector<iceberg::SchemaField>{*value_field1, *value_field2});
+                  auto value_field = std::make_unique<iceberg::SchemaField>(
+                      6, "value", value_struct, false);
+
+                  auto map_type =
+                      std::make_shared<iceberg::MapType>(*key_field, *value_field);
+                  auto map_field = std::make_unique<iceberg::SchemaField>(7, "map_field",
+                                                                          map_type, true);
+                  return std::make_shared<iceberg::Schema>(
+                      std::vector<iceberg::SchemaField>{*map_field}, 100);
+                },
+            .selected_ids = {1, 4},
+            .expected_schema =
+                []() {
+                  auto key_field1 = std::make_unique<iceberg::SchemaField>(
+                      1, "key_id", iceberg::int32(), false);
+                  auto key_struct = std::make_shared<iceberg::StructType>(
+                      std::vector<iceberg::SchemaField>{*key_field1});
+                  auto key_field =
+                      std::make_unique<iceberg::SchemaField>(3, "key", key_struct, false);
+
+                  auto value_field1 = std::make_unique<iceberg::SchemaField>(
+                      4, "value_id", iceberg::int32(), false);
+                  auto value_struct = std::make_shared<iceberg::StructType>(
+                      std::vector<iceberg::SchemaField>{*value_field1});
+                  auto value_field = std::make_unique<iceberg::SchemaField>(
+                      6, "value", value_struct, false);
+
+                  auto map_type =
+                      std::make_shared<iceberg::MapType>(*key_field, *value_field);
+                  auto map_field = std::make_unique<iceberg::SchemaField>(7, "map_field",
+                                                                          map_type, true);
+                  return std::make_shared<iceberg::Schema>(
+                      std::vector<iceberg::SchemaField>{*map_field}, 100);
+                },
+            .should_succeed = true},
+
+        ProjectTestParam{.test_name = "ProjectEmptyResult",
+                         .create_schema =
+                             []() {
+                               auto field1 = std::make_unique<iceberg::SchemaField>(
+                                   1, "id", iceberg::int32(), false);
+                               auto field2 = std::make_unique<iceberg::SchemaField>(
+                                   2, "name", iceberg::string(), true);
+                               return std::make_shared<iceberg::Schema>(
+                                   std::vector<iceberg::SchemaField>{*field1, *field2},
+                                   100);
+                             },
+                         .selected_ids = {999},  // Select non-existent field
+                         .expected_schema =
+                             []() {
+                               return std::make_shared<iceberg::Schema>(
+                                   std::vector<iceberg::SchemaField>{}, 100);
+                             },
+                         .should_succeed = true}));
