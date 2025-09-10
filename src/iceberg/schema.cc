@@ -264,12 +264,11 @@ void NameToIdVisitor::Finish() {
 /// \brief Visitor class for pruning schema columns based on selected field IDs.
 ///
 /// This visitor traverses a schema and creates a projected version containing only
-/// the specified fields. It handles different projection modes:
-/// - select_full_types=true: Include entire fields when their ID is selected
-/// - select_full_types=false: Recursively project nested fields within selected structs
+/// the specified fields. When `select_full_types` is true, a field with all its
+/// sub-fields are selected if its field-id has been selected; otherwise, only leaf
+/// fields of selected field-ids are selected.
 ///
-/// \warning Error conditions that will cause projection to fail:
-/// - Project or Select a Map with just key or value (returns InvalidArgument)
+/// \note It returns an error when projection is not successful.
 class PruneColumnVisitor {
  public:
   PruneColumnVisitor(const std::unordered_set<int32_t>& selected_ids,
@@ -279,157 +278,80 @@ class PruneColumnVisitor {
   Result<std::shared_ptr<Type>> Visit(const std::shared_ptr<Type>& type) const {
     switch (type->type_id()) {
       case TypeId::kStruct: {
-        auto struct_type = std::static_pointer_cast<StructType>(type);
-        return Visit(struct_type);
+        return Visit(internal::checked_pointer_cast<StructType>(type));
       }
       case TypeId::kList: {
-        auto list_type = std::static_pointer_cast<ListType>(type);
-        return Visit(list_type);
+        return Visit(internal::checked_pointer_cast<ListType>(type));
       }
       case TypeId::kMap: {
-        auto map_type = std::static_pointer_cast<MapType>(type);
-        return Visit(map_type);
+        return Visit(internal::checked_pointer_cast<MapType>(type));
       }
       default: {
-        auto primitive_type = std::static_pointer_cast<PrimitiveType>(type);
-        return Visit(primitive_type);
+        return nullptr;
       }
     }
+  }
+
+  Result<std::shared_ptr<Type>> Visit(const SchemaField& field) const {
+    if (selected_ids_.contains(field.field_id())) {
+      return (select_full_types_ || field.type()->is_primitive()) ? field.type()
+                                                                  : Visit(field.type());
+    }
+    return Visit(field.type());
+  }
+
+  static SchemaField MakeField(const SchemaField& field, std::shared_ptr<Type> type) {
+    return {field.field_id(), std::string(field.name()), std::move(type),
+            field.optional(), std::string(field.doc())};
   }
 
   Result<std::shared_ptr<Type>> Visit(const std::shared_ptr<StructType>& type) const {
-    std::vector<std::shared_ptr<Type>> selected_types;
-    for (const auto& field : type->fields()) {
-      if (select_full_types_ and selected_ids_.contains(field.field_id())) {
-        selected_types.emplace_back(field.type());
-        continue;
-      }
-      ICEBERG_ASSIGN_OR_RAISE(auto child_result, Visit(field.type()));
-      if (selected_ids_.contains(field.field_id())) {
-        selected_types.emplace_back(
-            field.type()->is_primitive() ? field.type() : std::move(child_result));
-      } else {
-        selected_types.emplace_back(std::move(child_result));
-      }
-    }
-
     bool same_types = true;
     std::vector<SchemaField> selected_fields;
-    const auto& fields = type->fields();
-    for (size_t i = 0; i < fields.size(); i++) {
-      if (fields[i].type() == selected_types[i]) {
-        selected_fields.emplace_back(std::move(fields[i]));
-      } else if (selected_types[i]) {
-        same_types = false;
-        selected_fields.emplace_back(fields[i].field_id(), std::string(fields[i].name()),
-                                     std::move(selected_types[i]), fields[i].optional(),
-                                     std::string(fields[i].doc()));
+    for (const auto& field : type->fields()) {
+      ICEBERG_ASSIGN_OR_RAISE(auto child_type, Visit(field));
+      if (child_type) {
+        same_types = same_types && (child_type == field.type());
+        selected_fields.emplace_back(MakeField(field, std::move(child_type)));
       }
     }
 
-    if (!selected_fields.empty()) {
-      if (same_types && selected_fields.size() == fields.size()) {
-        return type;
-      } else {
-        return std::make_shared<StructType>(std::move(selected_fields));
-      }
+    if (selected_fields.empty()) {
+      return nullptr;
+    } else if (same_types and selected_fields.size() == type->fields().size()) {
+      return type;
     }
-
-    return nullptr;
+    return std::make_shared<StructType>(std::move(selected_fields));
   }
 
   Result<std::shared_ptr<Type>> Visit(const std::shared_ptr<ListType>& type) const {
-    const auto& element_field = type->fields()[0];
-    if (select_full_types_ and selected_ids_.contains(element_field.field_id())) {
+    const auto& elem_field = type->fields()[0];
+    ICEBERG_ASSIGN_OR_RAISE(auto elem_type, Visit(elem_field));
+    if (elem_type == nullptr) {
+      return nullptr;
+    } else if (elem_type == elem_field.type()) {
       return type;
     }
-
-    ICEBERG_ASSIGN_OR_RAISE(auto child_result, Visit(element_field.type()));
-
-    std::shared_ptr<Type> out;
-    if (selected_ids_.contains(element_field.field_id())) {
-      if (element_field.type()->is_primitive()) {
-        out = std::make_shared<ListType>(element_field);
-      } else {
-        ICEBERG_ASSIGN_OR_RAISE(out, ProjectList(element_field, std::move(child_result)));
-      }
-    } else if (child_result) {
-      ICEBERG_ASSIGN_OR_RAISE(out, ProjectList(element_field, std::move(child_result)));
-    }
-    return out;
+    return std::make_shared<ListType>(MakeField(elem_field, std::move(elem_type)));
   }
 
   Result<std::shared_ptr<Type>> Visit(const std::shared_ptr<MapType>& type) const {
     const auto& key_field = type->fields()[0];
     const auto& value_field = type->fields()[1];
+    ICEBERG_ASSIGN_OR_RAISE(auto key_type, Visit(key_field));
+    ICEBERG_ASSIGN_OR_RAISE(auto value_type, Visit(value_field));
 
-    if (select_full_types_ and selected_ids_.contains(key_field.field_id()) and
-        selected_ids_.contains(value_field.field_id())) {
+    if (key_type == nullptr && value_type == nullptr) {
+      return nullptr;
+    } else if (value_type == value_field.type() &&
+               (key_type == key_field.type() || key_type == nullptr)) {
       return type;
+    } else if (value_type == nullptr) {
+      return InvalidArgument("Cannot project Map without value field");
     }
-
-    ICEBERG_ASSIGN_OR_RAISE(auto key_result, Visit(key_field.type()));
-    ICEBERG_ASSIGN_OR_RAISE(auto value_result, Visit(value_field.type()));
-
-    if (selected_ids_.contains(value_field.field_id()) and
-        value_field.type()->is_primitive()) {
-      value_result = value_field.type();
-    }
-    if (selected_ids_.contains(key_field.field_id()) and
-        key_field.type()->is_primitive()) {
-      key_result = key_field.type();
-    }
-
-    if (!key_result && !value_result) {
-      return nullptr;
-    }
-
-    if (!key_result || !value_result) {
-      return InvalidArgument(
-          "Cannot project Map with only key or value: key={}, value={}",
-          key_result ? "present" : "null", value_result ? "present" : "null");
-    }
-
-    ICEBERG_ASSIGN_OR_RAISE(auto out,
-                            ProjectMap(key_field, value_field, key_result, value_result));
-    return out;
-  }
-
-  Result<std::shared_ptr<Type>> Visit(const std::shared_ptr<PrimitiveType>& type) const {
-    return nullptr;
-  }
-
-  Result<std::shared_ptr<Type>> ProjectList(const SchemaField& element_field,
-                                            std::shared_ptr<Type> child_result) const {
-    if (!child_result) {
-      return nullptr;
-    }
-    if (element_field.type() == child_result) {
-      return std::make_shared<ListType>(element_field);
-    }
-    return std::make_shared<ListType>(element_field.field_id(), child_result,
-                                      element_field.optional());
-  }
-
-  Result<std::shared_ptr<Type>> ProjectMap(const SchemaField& key_field,
-                                           const SchemaField& value_field,
-                                           std::shared_ptr<Type> key_result,
-                                           std::shared_ptr<Type> value_result) const {
-    SchemaField projected_key_field = key_field;
-    if (key_field.type() != key_result) {
-      projected_key_field =
-          SchemaField(key_field.field_id(), std::string(key_field.name()), key_result,
-                      key_field.optional());
-    }
-
-    SchemaField projected_value_field = value_field;
-    if (value_field.type() != value_result) {
-      projected_value_field =
-          SchemaField(value_field.field_id(), std::string(value_field.name()),
-                      value_result, value_field.optional());
-    }
-
-    return std::make_shared<MapType>(projected_key_field, projected_value_field);
+    return std::make_shared<MapType>(
+        (key_type == nullptr ? key_field : MakeField(key_field, std::move(key_type))),
+        MakeField(value_field, std::move(value_type)));
   }
 
  private:

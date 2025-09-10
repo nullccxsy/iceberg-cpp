@@ -512,19 +512,16 @@ TEST_P(SelectParamTest, SelectFields) {
   auto result = input_schema->Select(param.select_fields, param.case_sensitive);
 
   if (param.should_succeed) {
-    ASSERT_TRUE(result.has_value()) << "Select should succeed for: " << param.test_name;
-
+    ASSERT_TRUE(result.has_value());
     auto actual_schema = std::move(result.value());
     auto expected_schema = param.expected_schema();
     ASSERT_EQ(*actual_schema, *expected_schema)
         << "Schema mismatch for: " << param.test_name;
   } else {
-    ASSERT_FALSE(result.has_value()) << "Select should fail for: " << param.test_name;
-    ASSERT_THAT(result, iceberg::IsError(iceberg::ErrorKind::kInvalidArgument))
-        << "Should return InvalidArgument error for: " << param.test_name;
+    ASSERT_FALSE(result.has_value());
+    ASSERT_THAT(result, iceberg::IsError(iceberg::ErrorKind::kInvalidArgument));
 
-    ASSERT_THAT(result, iceberg::HasErrorMessage(param.expected_error_message))
-        << "Error message mismatch for: " << param.test_name;
+    ASSERT_THAT(result, iceberg::HasErrorMessage(param.expected_error_message));
   }
 }
 
@@ -941,21 +938,14 @@ TEST_P(ProjectParamTest, ProjectFields) {
   auto result = input_schema->Project(selected_ids);
 
   if (param.should_succeed) {
-    ASSERT_TRUE(result.has_value()) << "Project should succeed for: " << param.test_name;
-
+    ASSERT_TRUE(result.has_value());
     auto actual_schema = std::move(result.value());
     auto expected_schema = param.expected_schema();
-    ASSERT_EQ(*actual_schema, *expected_schema)
-        << "Schema mismatch for: " << param.test_name;
+    ASSERT_EQ(*actual_schema, *expected_schema);
   } else {
-    ASSERT_FALSE(result.has_value()) << "Project should fail for: " << param.test_name;
-    ASSERT_THAT(result, iceberg::IsError(iceberg::ErrorKind::kInvalidArgument))
-        << "Should return InvalidArgument error for: " << param.test_name;
-
-    if (!param.expected_error_message.empty()) {
-      ASSERT_THAT(result, iceberg::HasErrorMessage(param.expected_error_message))
-          << "Error message mismatch for: " << param.test_name;
-    }
+    ASSERT_FALSE(result.has_value());
+    ASSERT_THAT(result, iceberg::IsError(iceberg::ErrorKind::kInvalidArgument));
+    ASSERT_THAT(result, iceberg::HasErrorMessage(param.expected_error_message));
   }
 }
 
@@ -1238,49 +1228,26 @@ INSTANTIATE_TEST_SUITE_P(
 
 INSTANTIATE_TEST_SUITE_P(
     ProjectMapErrorTestCases, ProjectParamTest,
-    ::testing::Values(
-        ProjectTestParam{
-            .test_name = "ProjectMapWithOnlyKey",
-            .create_schema =
-                []() {
-                  // Create a map with key and value fields
-                  auto key_field = std::make_unique<iceberg::SchemaField>(
-                      1, "key", iceberg::int32(), false);
-                  auto value_field = std::make_unique<iceberg::SchemaField>(
-                      2, "value", iceberg::string(), false);
-                  auto map_type =
-                      std::make_shared<iceberg::MapType>(*key_field, *value_field);
-                  auto map_field = std::make_unique<iceberg::SchemaField>(3, "map_field",
-                                                                          map_type, true);
-                  return std::make_shared<iceberg::Schema>(
-                      std::vector<iceberg::SchemaField>{*map_field}, 100);
-                },
-            .selected_ids = {1},  // Only select key field, not value field
-            .expected_schema = []() { return nullptr; },
-            .should_succeed = false,
-            .expected_error_message =
-                "Cannot project Map with only key or value: key=present, value=null"},
-
-        ProjectTestParam{
-            .test_name = "ProjectMapWithOnlyValue",
-            .create_schema =
-                []() {
-                  auto key_field = std::make_unique<iceberg::SchemaField>(
-                      1, "key", iceberg::int32(), false);
-                  auto value_field = std::make_unique<iceberg::SchemaField>(
-                      2, "value", iceberg::string(), false);
-                  auto map_type =
-                      std::make_shared<iceberg::MapType>(*key_field, *value_field);
-                  auto map_field = std::make_unique<iceberg::SchemaField>(3, "map_field",
-                                                                          map_type, true);
-                  return std::make_shared<iceberg::Schema>(
-                      std::vector<iceberg::SchemaField>{*map_field}, 100);
-                },
-            .selected_ids = {2},  // Only select value field, not key field
-            .expected_schema = []() { return nullptr; },
-            .should_succeed = false,
-            .expected_error_message =
-                "Cannot project Map with only key or value: key=null, value=present"}));
+    ::testing::Values(ProjectTestParam{
+        .test_name = "ProjectMapWithOnlyKey",
+        .create_schema =
+            []() {
+              // Create a map with key and value fields
+              auto key_field = std::make_unique<iceberg::SchemaField>(
+                  1, "key", iceberg::int32(), false);
+              auto value_field = std::make_unique<iceberg::SchemaField>(
+                  2, "value", iceberg::string(), false);
+              auto map_type =
+                  std::make_shared<iceberg::MapType>(*key_field, *value_field);
+              auto map_field =
+                  std::make_unique<iceberg::SchemaField>(3, "map_field", map_type, true);
+              return std::make_shared<iceberg::Schema>(
+                  std::vector<iceberg::SchemaField>{*map_field}, 100);
+            },
+        .selected_ids = {1},  // Only select key field, not value field
+        .expected_schema = []() { return nullptr; },
+        .should_succeed = false,
+        .expected_error_message = "Cannot project Map without value field"}));
 
 INSTANTIATE_TEST_SUITE_P(
     ProjectListAndMapTestCases, ProjectParamTest,
