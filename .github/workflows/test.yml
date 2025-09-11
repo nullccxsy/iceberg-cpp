@@ -83,7 +83,7 @@ jobs:
       - name: Install dependencies
         shell: cmd
         run: |
-          vcpkg install zlib:x64-windows nlohmann-json:x64-windows arrow:x64-windows nanoarrow:x64-windows
+          vcpkg install zlib:x64-windows nlohmann-json:x64-windows arrow:x64-windows nanoarrow:x64-windows parquet:x64-windows
       - name: Build Iceberg
         shell: cmd
         run: |
