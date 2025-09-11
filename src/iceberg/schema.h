@@ -76,45 +76,22 @@ class ICEBERG_EXPORT Schema : public StructType {
 
   /// \brief Creates a projected schema from selected field names.
   ///
-  /// Selects fields by their names using dot notation for nested fields.
-  /// Supports both canonical names (e.g., "user.address.street") and short names
-  /// (e.g., "user.street" for map values, "list.element" for list elements).
-  ///
-  /// \param names Field names to select (supports nested field paths)
-  /// \param case_sensitive Whether name matching is case-sensitive (default: true)
-  /// \return Projected schema containing only the specified fields
-  Result<std::unique_ptr<const Schema>> Select(std::span<const std::string> names,
-                                               bool case_sensitive = true) const;
-
-  /// \brief Creates a projected schema from selected field names.
-  Result<std::unique_ptr<const Schema>> Select(
-      const std::initializer_list<std::string>& names, bool case_sensitive = true) const;
-
-  /// \brief Creates a projected schema from selected field names.
-  template <typename... Args>
-  Result<std::unique_ptr<const Schema>> Select(Args&&... names,
-                                               bool case_sensitive = true) const {
-    static_assert(((std::is_convertible_v<Args, std::string> ||
-                    std::is_convertible_v<Args, std::string>) &&
-                   ...),
-                  "All arguments must be convertible to std::string");
-    return select({(names)...}, case_sensitive);
-  }
+  /// \param names Selected field names and nested names are dot-concatenated.
+  /// \param case_sensitive Whether name matching is case-sensitive (default: true).
+  /// \return Projected schema containing only selected fields.
+  /// \note If the field name of a nested type has been selected, all of its
+  /// sub-fields will be selected.
+  Result<std::unique_ptr<Schema>> Select(std::span<const std::string> names,
+                                         bool case_sensitive = true) const;
 
   /// \brief Creates a projected schema from selected field IDs.
   ///
-  /// Selects fields by their numeric IDs. More efficient than Select() when you
-  /// already know the field IDs. Handles recursive projection of nested structs.
-  ///
   /// \param field_ids Set of field IDs to select
-  /// \return Projected schema containing only the specified fields
-  ///
-  /// \note When a struct field ID is specified:
-  ///       - If nested field IDs are also in field_ids, they are recursively projected
-  ///       - If no nested field IDs are in field_ids, an empty struct is included
-  ///       - List/Map types cannot be explicitly projected (returns error)
-  Result<std::unique_ptr<const Schema>> Project(
-      std::unordered_set<int32_t>& field_ids) const;
+  /// \return Projected schema containing only the specified fields.
+  /// \note Field ID of a nested field may not be projected unless at least
+  /// one of its sub-fields has been projected.
+  Result<std::unique_ptr<Schema>> Project(
+      const std::unordered_set<int32_t>& field_ids) const;
 
   friend bool operator==(const Schema& lhs, const Schema& rhs) { return lhs.Equals(rhs); }
 

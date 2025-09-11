@@ -277,18 +277,14 @@ class PruneColumnVisitor {
 
   Result<std::shared_ptr<Type>> Visit(const std::shared_ptr<Type>& type) const {
     switch (type->type_id()) {
-      case TypeId::kStruct: {
+      case TypeId::kStruct:
         return Visit(internal::checked_pointer_cast<StructType>(type));
-      }
-      case TypeId::kList: {
+      case TypeId::kList:
         return Visit(internal::checked_pointer_cast<ListType>(type));
-      }
-      case TypeId::kMap: {
+      case TypeId::kMap:
         return Visit(internal::checked_pointer_cast<MapType>(type));
-      }
-      default: {
+      default:
         return nullptr;
-      }
     }
   }
 
@@ -356,21 +352,11 @@ class PruneColumnVisitor {
 
  private:
   const std::unordered_set<int32_t>& selected_ids_;
-  bool select_full_types_;
+  const bool select_full_types_;
 };
 
-Result<std::unique_ptr<const Schema>> Schema::Select(std::span<const std::string> names,
-                                                     bool case_sensitive) const {
-  return SelectInternal(names, case_sensitive);
-}
-
-Result<std::unique_ptr<const Schema>> Schema::Select(
-    const std::initializer_list<std::string>& names, bool case_sensitive) const {
-  return SelectInternal(names, case_sensitive);
-}
-
-Result<std::unique_ptr<const Schema>> Schema::SelectInternal(
-    std::span<const std::string> names, bool case_sensitive) const {
+Result<std::unique_ptr<Schema>> Schema::Select(std::span<const std::string> names,
+                                               bool case_sensitive) const {
   const std::string kAllColumns = "*";
   if (std::ranges::find(names, kAllColumns) != names.end()) {
     return std::make_unique<Schema>(*this);
@@ -385,9 +371,8 @@ Result<std::unique_ptr<const Schema>> Schema::SelectInternal(
   }
 
   PruneColumnVisitor visitor(selected_ids, /*select_full_types=*/true);
-  auto self = std::shared_ptr<const StructType>(this, [](const StructType*) {});
-  ICEBERG_ASSIGN_OR_RAISE(auto result,
-                          visitor.Visit(std::const_pointer_cast<StructType>(self)));
+  ICEBERG_ASSIGN_OR_RAISE(
+      auto result, visitor.Visit(std::shared_ptr<StructType>(ToStructType(*this))));
 
   if (!result) {
     return std::make_unique<Schema>(std::vector<SchemaField>{}, schema_id_);
@@ -397,17 +382,16 @@ Result<std::unique_ptr<const Schema>> Schema::SelectInternal(
     return InvalidSchema("Projected type must be a struct type");
   }
 
-  auto& projected_struct = internal::checked_cast<const StructType&>(*result);
-
-  return FromStructType(std::move(const_cast<StructType&>(projected_struct)), schema_id_);
+  return FromStructType(std::move(const_cast<StructType&>(
+                            internal::checked_cast<const StructType&>(*result))),
+                        schema_id_);
 }
 
-Result<std::unique_ptr<const Schema>> Schema::Project(
-    std::unordered_set<int32_t>& field_ids) const {
+Result<std::unique_ptr<Schema>> Schema::Project(
+    const std::unordered_set<int32_t>& field_ids) const {
   PruneColumnVisitor visitor(field_ids, /*select_full_types=*/false);
-  auto self = std::shared_ptr<const StructType>(this, [](const StructType*) {});
-  ICEBERG_ASSIGN_OR_RAISE(auto result,
-                          visitor.Visit(std::const_pointer_cast<StructType>(self)));
+  ICEBERG_ASSIGN_OR_RAISE(
+      auto result, visitor.Visit(std::shared_ptr<StructType>(ToStructType(*this))));
 
   if (!result) {
     return std::make_unique<Schema>(std::vector<SchemaField>{}, schema_id_);
@@ -417,8 +401,9 @@ Result<std::unique_ptr<const Schema>> Schema::Project(
     return InvalidSchema("Projected type must be a struct type");
   }
 
-  auto& projected_struct = internal::checked_cast<const StructType&>(*result);
-  return FromStructType(std::move(const_cast<StructType&>(projected_struct)), schema_id_);
+  return FromStructType(std::move(const_cast<StructType&>(
+                            internal::checked_cast<const StructType&>(*result))),
+                        schema_id_);
 }
 
 }  // namespace iceberg
