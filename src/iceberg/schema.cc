@@ -261,7 +261,7 @@ void NameToIdVisitor::Finish() {
   }
 }
 
-/// \brief Visitor class for pruning schema columns based on selected field IDs.
+/// \brief Visitor for pruning columns based on selected field IDs.
 ///
 /// This visitor traverses a schema and creates a projected version containing only
 /// the specified fields. When `select_full_types` is true, a field with all its
@@ -314,7 +314,7 @@ class PruneColumnVisitor {
 
     if (selected_fields.empty()) {
       return nullptr;
-    } else if (same_types and selected_fields.size() == type->fields().size()) {
+    } else if (same_types && selected_fields.size() == type->fields().size()) {
       return type;
     }
     return std::make_shared<StructType>(std::move(selected_fields));
@@ -372,38 +372,36 @@ Result<std::unique_ptr<Schema>> Schema::Select(std::span<const std::string> name
 
   PruneColumnVisitor visitor(selected_ids, /*select_full_types=*/true);
   ICEBERG_ASSIGN_OR_RAISE(
-      auto result, visitor.Visit(std::shared_ptr<StructType>(ToStructType(*this))));
+      auto pruned_type, visitor.Visit(std::shared_ptr<StructType>(ToStructType(*this))));
 
-  if (!result) {
-    return std::make_unique<Schema>(std::vector<SchemaField>{}, schema_id_);
+  if (!pruned_type) {
+    return std::make_unique<Schema>(std::vector<SchemaField>{}, std::nullopt);
   }
 
-  if (result->type_id() != TypeId::kStruct) {
+  if (pruned_type->type_id() != TypeId::kStruct) {
     return InvalidSchema("Projected type must be a struct type");
   }
 
-  return FromStructType(std::move(const_cast<StructType&>(
-                            internal::checked_cast<const StructType&>(*result))),
-                        schema_id_);
+  return FromStructType(std::move(internal::checked_cast<StructType&>(*pruned_type)),
+                        std::nullopt);
 }
 
 Result<std::unique_ptr<Schema>> Schema::Project(
     const std::unordered_set<int32_t>& field_ids) const {
   PruneColumnVisitor visitor(field_ids, /*select_full_types=*/false);
   ICEBERG_ASSIGN_OR_RAISE(
-      auto result, visitor.Visit(std::shared_ptr<StructType>(ToStructType(*this))));
+      auto project_type, visitor.Visit(std::shared_ptr<StructType>(ToStructType(*this))));
 
-  if (!result) {
-    return std::make_unique<Schema>(std::vector<SchemaField>{}, schema_id_);
+  if (!project_type) {
+    return std::make_unique<Schema>(std::vector<SchemaField>{}, std::nullopt);
   }
 
-  if (result->type_id() != TypeId::kStruct) {
+  if (project_type->type_id() != TypeId::kStruct) {
     return InvalidSchema("Projected type must be a struct type");
   }
 
-  return FromStructType(std::move(const_cast<StructType&>(
-                            internal::checked_cast<const StructType&>(*result))),
-                        schema_id_);
+  return FromStructType(std::move(internal::checked_cast<StructType&>(*project_type)),
+                        std::nullopt);
 }
 
 }  // namespace iceberg
