@@ -359,7 +359,8 @@ Result<std::unique_ptr<Schema>> Schema::Select(std::span<const std::string> name
                                                bool case_sensitive) const {
   const std::string kAllColumns = "*";
   if (std::ranges::find(names, kAllColumns) != names.end()) {
-    return std::make_unique<Schema>(*this);
+    auto struct_type = ToStructType(*this);
+    return FromStructType(std::move(*struct_type), std::nullopt);
   }
 
   std::unordered_set<int32_t> selected_ids;
