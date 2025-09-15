@@ -559,26 +559,3 @@ TEST_F(SchemaThreadSafetyTest, MixedConcurrentOperations) {
     thread.join();
   }
 }
-
-TEST_F(SchemaThreadSafetyTest, CopyAndConcurrentAccess) {
-  const int num_threads = 5;
-  const int iterations_per_thread = 20;
-  std::vector<std::thread> threads;
-  auto schema_copy = *schema_;
-
-  for (int i = 0; i < num_threads; ++i) {
-    threads.emplace_back([this, &schema_copy, iterations_per_thread, i]() {
-      for (int j = 0; j < iterations_per_thread; ++j) {
-        if (i % 2 == 0) {
-          ASSERT_THAT(schema_->FindFieldById(1), ::testing::Optional(*field1_));
-        } else {
-          ASSERT_THAT(schema_copy.FindFieldById(1), ::testing::Optional(*field1_));
-        }
-      }
-    });
-  }
-
-  for (auto& thread : threads) {
-    thread.join();
-  }
-}

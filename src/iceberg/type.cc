@@ -48,34 +48,6 @@ std::string StructType::ToString() const {
   return repr;
 }
 std::span<const SchemaField> StructType::fields() const { return fields_; }
-StructType::StructType(const StructType& other)
-    : fields_(other.fields_),
-      field_by_id_(other.field_by_id_),
-      field_by_name_(other.field_by_name_),
-      field_by_lowercase_name_(other.field_by_lowercase_name_) {}
-StructType::StructType(StructType&& other) noexcept
-    : fields_(std::move(other.fields_)),
-      field_by_id_(std::move(other.field_by_id_)),
-      field_by_name_(std::move(other.field_by_name_)),
-      field_by_lowercase_name_(std::move(other.field_by_lowercase_name_)) {}
-StructType& StructType::operator=(const StructType& other) {
-  if (*this != other) {
-    fields_ = other.fields_;
-    field_by_id_ = other.field_by_id_;
-    field_by_name_ = other.field_by_name_;
-    field_by_lowercase_name_ = other.field_by_lowercase_name_;
-  }
-  return *this;
-}
-StructType& StructType::operator=(StructType&& other) noexcept {
-  if (*this != other) {
-    fields_ = std::move(other.fields_);
-    field_by_id_ = std::move(other.field_by_id_);
-    field_by_name_ = std::move(other.field_by_name_);
-    field_by_lowercase_name_ = std::move(other.field_by_lowercase_name_);
-  }
-  return *this;
-}
 Result<std::optional<NestedType::SchemaFieldConstRef>> StructType::GetFieldById(
     int32_t field_id) const {
   ICEBERG_RETURN_UNEXPECTED(

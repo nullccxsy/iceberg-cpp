@@ -49,10 +49,6 @@ class ICEBERG_EXPORT Schema : public StructType {
   explicit Schema(std::vector<SchemaField> fields,
                   std::optional<int32_t> schema_id = std::nullopt);
 
-  Schema(const Schema& other);
-  Schema(Schema&& other) noexcept;
-  Schema& operator=(const Schema& other);
-  Schema& operator=(Schema&& other) noexcept;
   /// \brief Get the schema ID.
   ///
   /// A schema is identified by a unique ID for the purposes of schema

@@ -71,42 +71,6 @@ class NameToIdVisitor {
 Schema::Schema(std::vector<SchemaField> fields, std::optional<int32_t> schema_id)
     : StructType(std::move(fields)), schema_id_(schema_id) {}
 
-Schema::Schema(Schema&& other) noexcept
-    : StructType(std::move(other)),
-      schema_id_(other.schema_id_),
-      id_to_field_(std::move(other.id_to_field_)),
-      name_to_id_(std::move(other.name_to_id_)),
-      lowercase_name_to_id_(std::move(other.lowercase_name_to_id_)) {}
-
-Schema& Schema::operator=(const Schema& other) {
-  if (this != &other) {
-    StructType::operator=(other);
-    schema_id_ = other.schema_id_;
-    id_to_field_ = other.id_to_field_;
-    name_to_id_ = other.name_to_id_;
-    lowercase_name_to_id_ = other.lowercase_name_to_id_;
-  }
-  return *this;
-}
-
-Schema::Schema(const Schema& other)
-    : StructType(other),
-      schema_id_(other.schema_id_),
-      id_to_field_(other.id_to_field_),
-      name_to_id_(other.name_to_id_),
-      lowercase_name_to_id_(other.lowercase_name_to_id_) {}
-
-Schema& Schema::operator=(Schema&& other) noexcept {
-  if (this != &other) {
-    StructType::operator=(std::move(other));
-    schema_id_ = other.schema_id_;
-    id_to_field_ = std::move(other.id_to_field_);
-    name_to_id_ = std::move(other.name_to_id_);
-    lowercase_name_to_id_ = std::move(other.lowercase_name_to_id_);
-  }
-  return *this;
-}
-
 std::optional<int32_t> Schema::schema_id() const { return schema_id_; }
 
 std::string Schema::ToString() const {

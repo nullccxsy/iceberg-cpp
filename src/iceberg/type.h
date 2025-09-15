@@ -117,10 +117,6 @@ class ICEBERG_EXPORT StructType : public NestedType {
   constexpr static TypeId kTypeId = TypeId::kStruct;
   explicit StructType(std::vector<SchemaField> fields);
   ~StructType() override = default;
-  StructType(const StructType&);
-  StructType(StructType&&) noexcept;
-  StructType& operator=(const StructType&);
-  StructType& operator=(StructType&&) noexcept;
 
   TypeId type_id() const override;
   std::string ToString() const override;
