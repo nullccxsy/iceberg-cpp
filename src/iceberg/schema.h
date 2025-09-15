@@ -24,6 +24,7 @@
 /// and any utility functions.  See iceberg/type.h and iceberg/field.h as well.
 
 #include <cstdint>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -48,6 +49,10 @@ class ICEBERG_EXPORT Schema : public StructType {
   explicit Schema(std::vector<SchemaField> fields,
                   std::optional<int32_t> schema_id = std::nullopt);
 
+  Schema(const Schema& other);
+  Schema(Schema&& other) noexcept;
+  Schema& operator=(const Schema& other);
+  Schema& operator=(Schema&& other) noexcept;
   /// \brief Get the schema ID.
   ///
   /// A schema is identified by a unique ID for the purposes of schema
@@ -78,13 +83,11 @@ class ICEBERG_EXPORT Schema : public StructType {
   /// \brief Compare two schemas for equality.
   [[nodiscard]] bool Equals(const Schema& other) const;
 
-  // TODO(nullccxsy): Address potential concurrency issues in lazy initialization (e.g.,
-  // use std::call_once)
   Status InitIdToFieldMap() const;
   Status InitNameToIdMap() const;
   Status InitLowerCaseNameToIdMap() const;
 
-  const std::optional<int32_t> schema_id_;
+  std::optional<int32_t> schema_id_;
   /// Mapping from field id to field.
   mutable std::unordered_map<int32_t, std::reference_wrapper<const SchemaField>>
       id_to_field_;
@@ -94,6 +97,10 @@ class ICEBERG_EXPORT Schema : public StructType {
   /// Mapping from lowercased field name to field id
   mutable std::unordered_map<std::string, int32_t, StringHash, std::equal_to<>>
       lowercase_name_to_id_;
+
+  mutable std::once_flag id_flag_;
+  mutable std::once_flag name_flag_;
+  mutable std::once_flag lowercase_name_flag_;
 };
 
 }  // namespace iceberg
