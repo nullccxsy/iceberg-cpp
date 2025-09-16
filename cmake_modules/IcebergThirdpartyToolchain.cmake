@@ -288,18 +288,6 @@ function(resolve_croaring_dependency)
                                                             ${croaring_SOURCE_DIR}/cpp)
     endif()
 
-    if(NOT TARGET roaring::roaring-headers)
-      add_library(roaring::roaring-headers INTERFACE IMPORTED)
-      target_include_directories(roaring::roaring-headers
-                                 INTERFACE ${croaring_SOURCE_DIR}/include)
-    endif()
-
-    if(NOT TARGET roaring::roaring-headers-cpp)
-      add_library(roaring::roaring-headers-cpp INTERFACE IMPORTED)
-      target_include_directories(roaring::roaring-headers-cpp
-                                 INTERFACE ${croaring_SOURCE_DIR}/cpp)
-    endif()
-
     set(CROARING_VENDORED TRUE)
     set_target_properties(roaring PROPERTIES OUTPUT_NAME "iceberg_vendored_croaring"
                                              POSITION_INDEPENDENT_CODE ON)
