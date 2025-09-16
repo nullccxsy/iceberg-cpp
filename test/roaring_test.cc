@@ -41,8 +41,8 @@ TEST(CRoaringTest, Basic64Bit) {
     r2.add(i);
   }
   ASSERT_EQ(r2.cardinality(), 900);
-  ASSERT_TRUE(r2.contains(18000000000000000500ull));
-  ASSERT_FALSE(r2.contains(18000000000000000050ull));
+  ASSERT_TRUE(r2.contains(static_cast<uint64_t>(18000000000000000500ull)));
+  ASSERT_FALSE(r2.contains(static_cast<uint64_t>(18000000000000000050ull)));
   ASSERT_FALSE(r2.isEmpty());
 }
 
