@@ -83,7 +83,7 @@ class ICEBERG_EXPORT Schema : public StructType {
   Status InitNameToIdMap() const;
   Status InitLowerCaseNameToIdMap() const;
 
-  std::optional<int32_t> schema_id_;
+  const std::optional<int32_t> schema_id_;
   /// Mapping from field id to field.
   mutable std::unordered_map<int32_t, std::reference_wrapper<const SchemaField>>
       id_to_field_;
@@ -94,9 +94,9 @@ class ICEBERG_EXPORT Schema : public StructType {
   mutable std::unordered_map<std::string, int32_t, StringHash, std::equal_to<>>
       lowercase_name_to_id_;
 
-  mutable std::once_flag id_flag_;
-  mutable std::once_flag name_flag_;
-  mutable std::once_flag lowercase_name_flag_;
+  mutable std::once_flag id_to_field_flag_;
+  mutable std::once_flag name_to_id_flag_;
+  mutable std::once_flag lowercase_name_to_id_flag_;
 };
 
 }  // namespace iceberg
