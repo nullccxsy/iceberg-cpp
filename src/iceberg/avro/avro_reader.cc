@@ -175,17 +175,20 @@ class AvroReader::Impl {
 
   Result<std::unordered_map<std::string, std::string>> Metadata() {
     if (reader_ == nullptr) {
-      return InvalidArgument("Reader is not opened");
+      return Invalid("Reader is not opened");
     }
 
-    auto metadata = reader_->metadata();
+    const auto& metadata = reader_->metadata();
 
     std::unordered_map<std::string, std::string> metadata_map;
     metadata_map.reserve(metadata.size());
 
     for (const auto& pair : metadata) {
-      metadata_map.try_emplace(pair.first,
-                               std::string(pair.second.begin(), pair.second.end()));
+      auto [it, inserted] = metadata_map.try_emplace(
+          pair.first, std::string(pair.second.begin(), pair.second.end()));
+      if (!inserted) {
+        return Invalid("Duplicate metadata key found: {}", pair.first);
+      }
     }
 
     return metadata_map;

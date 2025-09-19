@@ -188,15 +188,15 @@ class ParquetReader::Impl {
 
   Result<std::unordered_map<std::string, std::string>> Metadata() {
     if (reader_ == nullptr) {
-      return InvalidArgument("Reader is not opened");
+      return Invalid("Reader is not opened");
     }
 
     auto metadata = reader_->parquet_reader()->metadata();
     if (!metadata) {
-      return InvalidArgument("Failed to get Parquet file metadata");
+      return Invalid("Failed to get Parquet file metadata");
     }
 
-    auto kv_metadata = metadata->key_value_metadata();
+    const auto& kv_metadata = metadata->key_value_metadata();
     if (!kv_metadata) {
       return std::unordered_map<std::string, std::string>{};
     }
@@ -205,7 +205,11 @@ class ParquetReader::Impl {
     metadata_map.reserve(kv_metadata->size());
 
     for (int i = 0; i < kv_metadata->size(); ++i) {
-      metadata_map.try_emplace(kv_metadata->key(i), kv_metadata->value(i));
+      auto [it, inserted] =
+          metadata_map.try_emplace(kv_metadata->key(i), kv_metadata->value(i));
+      if (!inserted) {
+        return Invalid("Duplicate metadata key found: {}", kv_metadata->key(i));
+      }
     }
 
     return metadata_map;
