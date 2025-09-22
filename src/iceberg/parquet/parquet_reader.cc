@@ -205,11 +205,7 @@ class ParquetReader::Impl {
     metadata_map.reserve(kv_metadata->size());
 
     for (int i = 0; i < kv_metadata->size(); ++i) {
-      auto [it, inserted] =
-          metadata_map.try_emplace(kv_metadata->key(i), kv_metadata->value(i));
-      if (!inserted) {
-        return Invalid("Duplicate metadata key found: {}", kv_metadata->key(i));
-      }
+      metadata_map.insert_or_assign(kv_metadata->key(i), kv_metadata->value(i));
     }
 
     return metadata_map;

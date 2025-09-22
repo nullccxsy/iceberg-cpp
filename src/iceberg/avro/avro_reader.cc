@@ -184,11 +184,8 @@ class AvroReader::Impl {
     metadata_map.reserve(metadata.size());
 
     for (const auto& pair : metadata) {
-      auto [it, inserted] = metadata_map.try_emplace(
-          pair.first, std::string(pair.second.begin(), pair.second.end()));
-      if (!inserted) {
-        return Invalid("Duplicate metadata key found: {}", pair.first);
-      }
+      metadata_map.insert_or_assign(pair.first,
+                                    std::string(pair.second.begin(), pair.second.end()));
     }
 
     return metadata_map;
