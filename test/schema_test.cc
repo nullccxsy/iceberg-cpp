@@ -26,6 +26,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include "gtest/gtest.h"
 #include "iceberg/result.h"
 #include "iceberg/schema_field.h"
 #include "iceberg/util/formatter.h"  // IWYU pragma: keep
@@ -762,7 +763,7 @@ TEST_P(ProjectParamTest, ProjectFields) {
 
   if (param.should_succeed) {
     ASSERT_TRUE(result.has_value());
-    ASSERT_THAT(*result.value(), *param.expected_schema());
+    ASSERT_EQ(*result.value(), *param.expected_schema());
   } else {
     ASSERT_FALSE(result.has_value());
     ASSERT_THAT(result, iceberg::IsError(iceberg::ErrorKind::kInvalidArgument));
@@ -942,3 +943,70 @@ INSTANTIATE_TEST_SUITE_P(
                          .selected_ids = {999},  // Select non-existent field
                          .expected_schema = []() { return MakeSchema(); },
                          .should_succeed = true}));
+
+class SchemaThreadSafetyTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    field1_ = std::make_unique<iceberg::SchemaField>(1, "id", iceberg::int32(), true);
+    field2_ = std::make_unique<iceberg::SchemaField>(2, "name", iceberg::string(), true);
+    field3_ = std::make_unique<iceberg::SchemaField>(3, "age", iceberg::int32(), true);
+    schema_ = std::make_unique<iceberg::Schema>(
+        std::vector<iceberg::SchemaField>{*field1_, *field2_, *field3_}, 100);
+  }
+
+  std::unique_ptr<iceberg::Schema> schema_;
+  std::unique_ptr<iceberg::SchemaField> field1_;
+  std::unique_ptr<iceberg::SchemaField> field2_;
+  std::unique_ptr<iceberg::SchemaField> field3_;
+};
+
+TEST_F(SchemaThreadSafetyTest, ConcurrentFindFieldById) {
+  const int num_threads = 10;
+  const int iterations_per_thread = 100;
+  std::vector<std::thread> threads;
+
+  for (int i = 0; i < num_threads; ++i) {
+    threads.emplace_back([this, iterations_per_thread]() {
+      for (int j = 0; j < iterations_per_thread; ++j) {
+        ASSERT_THAT(schema_->FindFieldById(1), ::testing::Optional(*field1_));
+        ASSERT_THAT(schema_->FindFieldById(999), ::testing::Optional(std::nullopt));
+      }
+    });
+  }
+
+  for (auto& thread : threads) {
+    thread.join();
+  }
+}
+
+TEST_F(SchemaThreadSafetyTest, MixedConcurrentOperations) {
+  const int num_threads = 8;
+  const int iterations_per_thread = 50;
+  std::vector<std::thread> threads;
+
+  for (int i = 0; i < num_threads; ++i) {
+    threads.emplace_back([this, iterations_per_thread, i]() {
+      for (int j = 0; j < iterations_per_thread; ++j) {
+        if (i % 4 == 0) {
+          ASSERT_THAT(schema_->FindFieldById(1), ::testing::Optional(*field1_));
+        } else if (i % 4 == 1) {
+          ASSERT_THAT(schema_->FindFieldByName("name", true),
+                      ::testing::Optional(*field2_));
+        } else if (i % 4 == 2) {
+          ASSERT_THAT(schema_->FindFieldByName("AGE", false),
+                      ::testing::Optional(*field3_));
+        } else {
+          ASSERT_THAT(schema_->FindFieldById(2), ::testing::Optional(*field2_));
+          ASSERT_THAT(schema_->FindFieldByName("id", true),
+                      ::testing::Optional(*field1_));
+          ASSERT_THAT(schema_->FindFieldByName("age", false),
+                      ::testing::Optional(*field3_));
+        }
+      }
+    });
+  }
+
+  for (auto& thread : threads) {
+    thread.join();
+  }
+}
