@@ -55,7 +55,7 @@ class ICEBERG_EXPORT Reader {
   /// \brief Get the schema of the data.
   virtual Result<ArrowSchema> Schema() = 0;
 
-  /// \brief Get the metadata of the file
+  /// \brief Get the metadata of the file.
   virtual Result<std::unordered_map<std::string, std::string>> Metadata() = 0;
 };
 

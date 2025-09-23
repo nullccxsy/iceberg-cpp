@@ -202,11 +202,7 @@ class ParquetReader::Impl {
     }
 
     std::unordered_map<std::string, std::string> metadata_map;
-    metadata_map.reserve(kv_metadata->size());
-
-    for (int i = 0; i < kv_metadata->size(); ++i) {
-      metadata_map.insert_or_assign(kv_metadata->key(i), kv_metadata->value(i));
-    }
+    kv_metadata->ToUnorderedMap(&metadata_map);
 
     return metadata_map;
   }
